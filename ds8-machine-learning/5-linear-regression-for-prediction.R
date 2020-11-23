@@ -27,5 +27,6 @@ y_hat <- fit$coef[1] + fit$coef[2]*test_set$father
 mean((y_hat - test_set$son)^2)
 
 # Cálculo de Y_hat usando a função predict()
+# resultado igual ao cálculo usando os coeficientes de regressão linear
 y_hat <- predict(fit, test_set)
 mean((y_hat - test_set$son)^2)
