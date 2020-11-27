@@ -20,7 +20,7 @@ knn_fit <- knn3(y ~ ., data = mnist_27$train)
 ###
 x <- as.matrix(mnist_27$train[,2:3])   # train dataset com dois predictors
 y <- mnist_27$train$y                  # outcome do train dataset
-knn_fit <- knn3(x, y)                  # chamada da fun??o
+knn_fit <- knn3(x, y)                  # chamada da função
 
 
 
