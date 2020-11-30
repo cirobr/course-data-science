@@ -22,11 +22,11 @@ mean((avg - test_set$son)^2)
 fit <- lm(son ~ father, data = train_set)
 fit$coef
 
-# Cálculo de Y_hat usando a construção da equação de regressão linear
+# CÃ¡lculo de Y_hat usando a construÃ§Ã£o da equaÃ§Ã£o de regressÃ£o linear
 y_hat <- fit$coef[1] + fit$coef[2]*test_set$father
 mean((y_hat - test_set$son)^2)
 
-# Cálculo de Y_hat usando a função predict()
-# resultado igual ao cálculo usando os coeficientes de regressão linear
+# CÃ¡lculo de Y_hat usando a funÃ§Ã£o predict()
+# resultado igual ao cÃ¡lculo usando os coeficientes de regressÃ£o linear
 y_hat <- predict(fit, test_set)
 mean((y_hat - test_set$son)^2)
