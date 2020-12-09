@@ -41,7 +41,7 @@ plot_cond_prob <- function(p_hat=NULL){
 
 plot_cond_prob(predict(train_knn, mnist_27$true_p, type = "prob")[,2])
 
-#install.packages("gam")
+install.packages("gam")
 modelLookup("gamLoess")
 
 grid <- expand.grid(span = seq(0.15, 0.65, len = 10), degree = 1)

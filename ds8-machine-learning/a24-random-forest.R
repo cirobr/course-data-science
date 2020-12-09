@@ -14,10 +14,11 @@ fit <- rpart(y ~ ., data = dat)
 
 # q2
 plot(fit, margin = 0.1)
-#text(fit, cex = 0.75)
+text(fit, cex = 0.75)
 
 
 # q3
+library(tidyverse)
 dat %>% 
   mutate(y_hat = predict(fit)) %>% 
   ggplot() +
