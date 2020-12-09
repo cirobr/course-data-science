@@ -67,3 +67,4 @@ polls_2008 %>%
 
 # prune the tree 
 pruned_fit <- prune(fit, cp = 0.01)
+
