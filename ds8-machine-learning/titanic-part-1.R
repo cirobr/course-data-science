@@ -87,7 +87,5 @@ mean(test_set$Survived == y_hat)
 # q4c
 # sex-class combination more likely to survive
 df <- train_set %>% 
-  summarize(Survived, Sex, Pclass) %>%
-  group_by(Sex, Pclass) %>%
-  table()
-df <- as.data.frame(df)
+  group_by(Pclass, Sex, Survived)
+            
