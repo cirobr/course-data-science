@@ -37,9 +37,9 @@ mean(train_set$Survived == 1)
 
 # q2
 set.seed(3, sample.kind = "Rounding") # if using R 3.5 or earlier, remove the sample.kind argument
-y_hat <- sample(c(0, 1), length(test_index), replace = TRUE)
+y_hat_guess <- sample(c(0, 1), length(test_index), replace = TRUE)
 #accuracy
-mean(test_set$Survived == y_hat)
+mean(test_set$Survived == y_hat_guess)
 
 
 # q3a
@@ -59,8 +59,8 @@ surv <- function(sex){
   y_hat
 }
 
-y_hat <- sapply(test_set$Sex, surv)
-mean(test_set$Survived == y_hat)
+y_hat_gender <- sapply(test_set$Sex, surv)
+mean(test_set$Survived == y_hat_gender)
 
 
 # q4a
@@ -81,11 +81,50 @@ surv2 <- function(pcl){
   y_hat
 }
 
-y_hat <- sapply(test_set$Pclass, surv2)
-mean(test_set$Survived == y_hat)
+y_hat_class <- sapply(test_set$Pclass, surv2)
+mean(test_set$Survived == y_hat_class)
 
 # q4c
 # sex-class combination more likely to survive
 df <- train_set %>% 
-  group_by(Pclass, Sex, Survived)
-            
+  select(Survived, Sex, Pclass) %>%
+  mutate(Survived2 = ifelse(Survived == 1, "Yes", "No")) %>%
+  group_by(Survived2, Sex, Pclass) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(Survived2, n) %>%
+  mutate(rate = Yes/No)
+df
+
+
+# q4d
+# predict survival by sex-class combination
+surv3 <- function(sex, pclass){
+  y_hat <- ifelse(sex == "female" & pclass %in% c(1, 2), 1, 0)
+  y_hat
+}
+
+df <- test_set %>%
+  mutate(y_hat_combo = surv3(Sex, Pclass)) %>%
+  select(Survived, y_hat_combo)
+y_hat_combo <- as.numeric(df$y_hat_combo)
+mean(test_set$Survived == y_hat_combo)
+
+
+# q5 confusion matrices
+ref <- as.factor(test_set$Survived)
+y_hat_class <- as.factor(y_hat_class)
+y_hat_gender <- as.factor(y_hat_gender)
+y_hat_combo <- as.factor(y_hat_combo)
+
+confusionMatrix(data=y_hat_gender, reference = ref)
+confusionMatrix(data=y_hat_class,  reference = ref)
+confusionMatrix(data=y_hat_combo,  reference = ref)
+
+
+# q6 f1-scores
+F_meas(data=y_hat_gender, reference = ref)
+F_meas(data=y_hat_class,  reference = ref)
+F_meas(data=y_hat_combo,  reference = ref)
+
+
