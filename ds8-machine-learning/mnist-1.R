@@ -1,0 +1,36 @@
+# mnist case study
+library(dslabs)
+if(!exists("mnist")) mnist <- read_mnist()
+
+names(mnist)
+dim(mnist$train$images)
+
+class(mnist$train$labels)
+table(mnist$train$labels)
+
+# sample 10k rows from training set, 1k rows from test set
+set.seed(123)
+index <- sample(nrow(mnist$train$images), 10000)
+x <- mnist$train$images[index,]
+y <- factor(mnist$train$labels[index])
+
+index <- sample(nrow(mnist$test$images), 1000)
+#note that the line above is the corrected code - code in video at 0:52 is incorrect
+x_test <- mnist$test$images[index,]
+y_test <- factor(mnist$test$labels[index])
+
+# view digit 334
+y[334]
+image(matrix(x[334,], 28, 28))
+
+# preprocessing
+library(caret)
+library(matrixStats)
+sds <- colSds(x)
+qplot(sds, bins = 256, color = I("black"))
+
+nzv <- nearZeroVar(x)                      # diagnoses predictors with one, unique or few variance)
+image(matrix(1:784 %in% nzv, 28, 28))
+
+col_index <- setdiff(1:ncol(x), nzv)
+length(col_index)                          # columns that are left for analysis (from 784 we ended up with 249)
