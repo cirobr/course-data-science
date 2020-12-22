@@ -11,7 +11,7 @@ pkg <- c("dslabs",          # datasets for the course
          "ggthemes",        # graphic themes for ggplot
          "tidyverse",       # %>%, tidy data, wide data, excel grabber, html grabber, etc
          "gtools",          # probability
-         "caret",           # linear regression
+         "caret",           # linear regression, machine learning
          "knitr",           # report generator package
          "broom"            # improves do() function: tidy(), glance(), augment()
 )
