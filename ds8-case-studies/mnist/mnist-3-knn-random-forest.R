@@ -1,7 +1,9 @@
 # knn
+# requirement for caret package to add column names
 colnames(x) <- 1:ncol(mnist$train$images)
 colnames(x_test) <- colnames(x)
 
+# use k-fold cross validation
 control <- trainControl(method = "cv", number = 10, p = .9)
 train_knn <- train(x[,col_index], y,
                    method = "knn", 

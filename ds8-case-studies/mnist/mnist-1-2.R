@@ -17,7 +17,7 @@ y <- factor(mnist$train$labels[index])
 index <- sample(nrow(mnist$test$images), 1000)
 #note that the line above is the corrected code - code in video at 0:52 is incorrect
 x_test <- mnist$test$images[index,]
-y_test <- factor(mnist$test$labels[index])
+y_test <- factor(mnist$test$labels[index]) ### p1
 
 # view digit 334
 y[334]
