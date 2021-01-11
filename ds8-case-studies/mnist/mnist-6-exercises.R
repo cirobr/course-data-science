@@ -60,3 +60,10 @@ mean(acc)
 
 
 # q7
+mat2 <- mat[,acc > 0.8]
+y_pred2 <- apply(mat2, 1, function(c){
+  avg <- mean(c == 7)
+  ifelse(avg > 0.5, "7", "2")
+})
+overall_accuracy <- mean(y_pred2 == mnist_27$test$y)
+overall_accuracy
