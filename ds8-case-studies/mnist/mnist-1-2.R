@@ -29,8 +29,8 @@ library(matrixStats)
 sds <- colSds(x)
 qplot(sds, bins = 256, color = I("black"))
 
-nzv <- nearZeroVar(x)                      # diagnoses predictors with one, unique or few variance)
+nzv <- nearZeroVar(x)             # diagnoses predictors with one, unique or few variance)
 image(matrix(1:784 %in% nzv, 28, 28))
 
 col_index <- setdiff(1:ncol(x), nzv)
-length(col_index)                          # columns that are left for analysis (from 784 we ended up with 249)
+length(col_index)                 # columns that are left for analysis (from 784 we ended up with 249)

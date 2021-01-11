@@ -9,6 +9,7 @@ train_knn <- train(x[,col_index], y,
                    method = "knn", 
                    tuneGrid = data.frame(k = c(1,3,5,7)),
                    trControl = control)
+train_knn
 ggplot(train_knn)
 
 n <- 1000
