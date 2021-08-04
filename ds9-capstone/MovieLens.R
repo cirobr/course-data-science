@@ -7,7 +7,7 @@ library(caret)
 library(tidyverse)
 
 # read edx dataset from csv
-#edx <- read_csv(file = "./dat/edx.csv")
+if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv")}
 head(edx)
 
 # split edx in train and test sets (70 / 30)
@@ -34,3 +34,8 @@ p$rating <- as.factor(p$rating)
 p %>% ggplot(aes(rating, qty, fill = split)) +
   geom_bar(stat="identity", position = "dodge") +
   ggtitle("Regularity of Train_set / Test_set split")
+
+# train a logistic regression model
+glm_fit <- train_set %>%
+  mutate(y = as.factor(rating)) %>%
+  glm(y ~ movieId, data=., family = "binomial")
