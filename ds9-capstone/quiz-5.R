@@ -1,11 +1,11 @@
 setwd("~/projects/data-science-course/ds9-capstone")
-#edx2 <- read_csv(file = "./dat/edx2.csv")
+#edx <- read_csv(file = "./dat/edx.csv")
 
-sum(str_detect(edx2$genres, "Drama"))
+sum(str_detect(edx$genres, "Drama"))
 gen <- c("Drama", "Comedy", "Thriller", "Romance")
 
 howmany <- function(x){
-  sum(str_detect(edx2$genres, x))
+  sum(str_detect(edx$genres, x))
 }
 
 howmany("Drama")
