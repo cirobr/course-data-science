@@ -15,25 +15,24 @@ genres_names <- strsplit(edx$genres, "|", fixed = TRUE) %>%
   unlist() %>%
   unique()
 
-df <- data.frame(matrix(NA, 
-                        nrow = nrow(edx), 
-                        ncol = length(genres_names)))
-colnames(df) <- genres_names
-edx2 <- cbind(edx, df)
+fn <- function(element_vector){
+  grepl(element_vector, vector)
+}
+
+vector <- edx$genres
+df <- as.data.frame(sapply(genres_names,fn))
+edx2 <- subset(edx, select = -c(genres))
+edx2 <- cbind(edx2, df)
+rm(df)
 head(edx2)
-
-
-
-
-
 
 # split edx in train and test sets
 set.seed(1, sample.kind = "Rounding")
-y = edx$rating              # outcome to predict: movie rating for a given user
+y = edx2$rating              # outcome to predict: movie rating for a given user
 proportion = 0.20
 test_index <- createDataPartition(y, times = 1, p = proportion, list = FALSE)
-test_set <- edx %>% slice(test_index)
-train_set <- edx %>% slice(-test_index)
+test_set <- edx2 %>% slice(test_index)
+train_set <- edx2 %>% slice(-test_index)
 
 # check for stratification of train / test splits
 p1 <- train_set %>%
@@ -50,13 +49,13 @@ p <- bind_rows(p1, p2) %>% group_by(split)
 p$rating <- as.factor(p$rating)
 p %>% ggplot(aes(rating, qty, fill = split)) +
   geom_bar(stat="identity", position = "dodge") +
-  ggtitle("Regularity of Train_set / Test_set split")
+  ggtitle("Stratification of Train_set / Test_set split")
 
 
 
 
 
 # train a logistic regression model
-glm_fit <- train_set %>%
-  mutate(y = as.factor(rating)) %>%
-  glm(y ~ movieId, data=., family = "binomial")
+#glm_fit <- train_set %>%
+  #mutate(y = as.factor(rating)) %>%
+  #glm(y ~ movieId, data=., family = "binomial")
