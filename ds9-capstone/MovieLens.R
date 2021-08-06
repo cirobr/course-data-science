@@ -20,16 +20,18 @@ fn <- function(element_vector){
 }
 
 vector <- edx$genres
-df <- as.data.frame(sapply(genres_names,fn))
+df <- sapply(genres_names,fn)
+
+df <- as.data.frame(df)
 edx2 <- subset(edx, select = -c(genres))
 edx2 <- cbind(edx2, df)
-rm(df)
+rm(df, edx)
 head(edx2)
 
 # split edx in train and test sets
-set.seed(1, sample.kind = "Rounding")
 y = edx2$rating              # outcome to predict: movie rating for a given user
 proportion = 0.20
+set.seed(1, sample.kind = "Rounding")
 test_index <- createDataPartition(y, times = 1, p = proportion, list = FALSE)
 test_set <- edx2 %>% slice(test_index)
 train_set <- edx2 %>% slice(-test_index)
@@ -51,11 +53,3 @@ p %>% ggplot(aes(rating, qty, fill = split)) +
   geom_bar(stat="identity", position = "dodge") +
   ggtitle("Stratification of Train_set / Test_set split")
 
-
-
-
-
-# train a logistic regression model
-#glm_fit <- train_set %>%
-  #mutate(y = as.factor(rating)) %>%
-  #glm(y ~ movieId, data=., family = "binomial")
