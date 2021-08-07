@@ -6,10 +6,6 @@ library(ggplot2)
 library(caret)
 library(tidyverse)
 
-# main datasets
-edx %>% as.data.frame() %>% write_csv(file = "./dat/edx.csv")
-validation %>% as.data.frame() %>% write_csv(file = "./dat/validation.csv")
-
 # read edx dataset from csv
 if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv")}
 head(edx)
@@ -33,4 +29,16 @@ edx2 <- cbind(edx2, df)
 rm(vector, df, edx)
 head(edx2)
 
-edx2 %>% as.data.frame() %>% write_csv(file = "./dat/edx2.csv")
+# split edx in train and test sets
+proportion = 0.20
+set.seed(1, sample.kind = "Rounding")
+test_index <- createDataPartition(edx2$rating, 
+                                  times = 1, 
+                                  p = proportion, 
+                                  list = FALSE)
+test_set <- edx2 %>% slice(test_index)
+train_set <- edx2 %>% slice(-test_index)
+rm(test_index, edx2)
+
+train_set %>% as.data.frame() %>% write_csv(file = "./dat/train.csv")
+test_set %>% as.data.frame() %>% write_csv(file = "./dat/test.csv")

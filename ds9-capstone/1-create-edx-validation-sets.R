@@ -49,3 +49,8 @@ removed <- anti_join(temp, validation)
 edx <- rbind(edx, removed)
 
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+# save datasets
+edx %>% as.data.frame() %>% write_csv(file = "./dat/edx.csv")
+validation %>% as.data.frame() %>% write_csv(file = "./dat/validation.csv")
+rm(validation)

@@ -7,20 +7,10 @@ library(caret)
 library(tidyverse)
 
 # read edx dataset from csv
-if(!exists("edx2")) {edx2 <- read_csv(file = "./dat/edx2.csv")}
-edx2$rating <- as.factor(edx2$rating)
-head(edx2)
-
-# split edx in train and test sets
-proportion = 0.20
-set.seed(1, sample.kind = "Rounding")
-test_index <- createDataPartition(edx2$rating, 
-                                  times = 1, 
-                                  p = proportion, 
-                                  list = FALSE)
-test_set <- edx2 %>% slice(test_index)
-train_set <- edx2 %>% slice(-test_index)
-rm(test_index)
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
+if(!exists("test_set")) {test_set <- read_csv(file = "./dat/test.csv")}
+train_set$rating <- as.factor(train_set$rating)
+test_set$rating <- as.factor(test_set$rating)
 
 # check for stratification of train / test split
 p1 <- train_set %>%
@@ -39,3 +29,4 @@ p %>% ggplot(aes(rating, qty, fill = split)) +
   geom_bar(stat="identity", position = "dodge") +
   ggtitle("Stratification of Test_set / Train_set split")
 
+#train model
