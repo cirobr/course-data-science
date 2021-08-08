@@ -7,8 +7,8 @@ library(caret)
 library(tidyverse)
 
 # read dataset from csv
-if(exists("test_set")) {rm(test_set)}
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
-train_set$rating <- as.factor(train_set$rating)
+rm(train_set, test_set)
+if(!exists("train_subset")) {train_subset <- read_csv(file = "./dat/subset.csv")}
+train_subset$rating <- as.factor(train_subset$rating)
 
 # train model
