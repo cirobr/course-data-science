@@ -2,8 +2,8 @@
 setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
-# oldw <- getOption("warn")
-# options(warn = -1)
+oldw <- getOption("warn")
+options(warn = -1)
 
 # clean memory
 rm(edx, edx2)
@@ -31,32 +31,46 @@ test_set$rating <- as.factor(test_set$rating)
 # df <- head(train_set, n=subset_size)
 
 # fit multi-class logistic regression
-# fit_multinom <- df %>% 
-#   multinom(rating ~ userId + movieId,
-#            data = ., 
-#            maxit=number_of_iterations)
-load(file="./mdl/fit_multinom.RData")
+multinom_fit <- train_set %>%
+  multinom(rating ~ userId + movieId,
+           data = .,
+           maxit=number_of_iterations)
+# load(file="./mdl/multinom_fit.RData")
 
-p_hat <- fitted(fit_multinom, test_set)
-y_hat <- colnames(p_hat)[max.col(p_hat)]
-y_db <- y_hat %>% tibble()
-colnames(y_db) <- "rating"
-y_db %>% 
-  group_by(rating) %>% 
-  summarise(count = n()) %>% 
-  spread(rating, count) %>% 
-  prop.table() %>% 
-  gather(rating, proportion) %>%
-  ggplot(aes(rating, proportion)) +
+# predict the outcome
+y_hat <- predict(multinom_fit, test_set)
+
+# rmse function definition
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+# check error metric
+RMSE(as.numeric(test_set$rating), as.numeric(y_hat))
+
+# proportion of ratings at testset
+db1 <- test_set$rating %>% as.character() %>% data.frame()
+colnames(db1) <- "ratings"
+db1 <- db1 %>% group_by(ratings) %>% summarize(qty = n())
+db1$group <- "actual"
+db1 <- db1[,c("ratings", "group", "qty")]
+
+# proportion of predicted ratings
+db2 <- y_hat %>% as.character() %>% data.frame()
+colnames(db2) <- "ratings"
+db2 <- db2 %>% group_by(ratings) %>% summarize(qty = n())
+db2$group <- "predicted"
+db2 <- db2[,c("ratings", "group", "qty")]
+db <- bind_rows(db1, db2)
+
+# plot the chart
+db %>%
+  ggplot(aes(ratings, qty, fill=group)) +
   geom_bar(stat="identity", position = "dodge") +
-  ggtitle("Proportion of predictions") +
-  geom_label(label = proportion)
-  #sprintf("%0.2f", round(proportion, digits = 2)), size = 2, nudge_y = -0.02)
+  ggtitle("Proportion actual x predicted")
 
-
-  
 # save model
-# save(fit_multinom, file="./mdl/fit_multinom.RData")
+# save(multinom_fit, file="./mdl/multinom_fit.RData")
 
 # restore warnings
-# options(warn = oldw)
+options(warn = oldw)

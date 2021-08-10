@@ -18,8 +18,8 @@ options(digits = 3)
 subset_size = 500000
 
 # read dataset from csv
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
-if(!exists("test_set")) {test_set <- read_csv(file = "./dat/test.csv")}
+train_set <- read_csv(file = "./dat/train.csv")
+test_set <- read_csv(file = "./dat/test.csv")
 
 # creates small size subset for experiences
 # df <- head(train_set, n=subset_size)
@@ -28,7 +28,7 @@ if(!exists("test_set")) {test_set <- read_csv(file = "./dat/test.csv")}
 # fit the model
 # fit <- lm(rating ~ movieId + userId,
 #           data = train_set)
-# load(file="./mdl/fit.RData")
+load(file="./mdl/fit.RData")
 
 # predict the outcome
 y_hat <- predict(fit, test_set) %>% as.numeric()
