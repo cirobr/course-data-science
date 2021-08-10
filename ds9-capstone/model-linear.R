@@ -21,7 +21,7 @@ subset_size = 500000
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
 if(!exists("test_set")) {test_set <- read_csv(file = "./dat/test.csv")}
 
-# creates train subset for experiences with small size dataset
+# creates small size subset for experiences
 # df <- head(train_set, n=subset_size)
 # rm(train_set)
 
