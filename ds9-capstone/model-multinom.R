@@ -35,13 +35,26 @@ test_set$rating <- as.factor(test_set$rating)
 #   multinom(rating ~ userId + movieId,
 #            data = ., 
 #            maxit=number_of_iterations)
-# load(file="./mdl/fit_multinom.RData")
+load(file="./mdl/fit_multinom.RData")
 
 p_hat <- fitted(fit_multinom, test_set)
-head(colnames(p_hat)[max.col(p_hat)])
+y_hat <- colnames(p_hat)[max.col(p_hat)]
+y_db <- y_hat %>% tibble()
+colnames(y_db) <- "rating"
+y_db %>% 
+  group_by(rating) %>% 
+  summarise(count = n()) %>% 
+  spread(rating, count) %>% 
+  prop.table() %>% 
+  gather(rating, proportion) %>%
+  ggplot(aes(rating, proportion)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Proportion of predictions") +
+  geom_label(label = proportion)
+  #sprintf("%0.2f", round(proportion, digits = 2)), size = 2, nudge_y = -0.02)
 
 
-
+  
 # save model
 # save(fit_multinom, file="./mdl/fit_multinom.RData")
 
