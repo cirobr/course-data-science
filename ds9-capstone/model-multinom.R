@@ -1,29 +1,34 @@
 # R version: 4.1.0
-setwd("~/projects/data-science-course/ds9-capstone")
+print("job start")
+# setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
 oldw <- getOption("warn")
 options(warn = -1)
 
 # clean memory
+print("clean memory")
 rm(edx, edx2)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
+print("setup environment")
 library(ggplot2)
 library(caret)
 library(tidyverse)
 library(nnet)
 
 options(digits = 3)
-subset_size = 500000
-number_of_iterations <- 500
+subset_size = 50000
+number_of_iterations <- 250
 
-# read datasets from csv
+# read csv datasets
+print("read csv datasets")
 train_set <- read_csv(file = "./dat/train.csv")
 test_set <- read_csv(file = "./dat/test.csv")
 
 # prepare datasets for categorical analysis
+print("prepare datasets")
 train_set <- train_set %>% select(-c(userId, movieId))
 train_set$rating <- as.factor(train_set$rating)
 
@@ -34,13 +39,15 @@ test_set$rating <- as.factor(test_set$rating)
 # df <- head(train_set, n=subset_size)
 
 # fit multi-class logistic regression
-multinom_fit <- train_set %>%
-  multinom(rating ~ .,
-           data = .,
-           maxit=number_of_iterations)
-# load(file="./mdl/multinom_fit.RData")
+print("fit the model")
+# multinom_fit <- train_set %>%
+#   multinom(rating ~ .,
+#            data = .,
+#            maxit=number_of_iterations)
+load(file="./mdl/multinom_fit-2.RData")
 
 # predict the outcome
+print("predict the outcome")
 y_hat <- predict(multinom_fit, test_set)
 
 # rmse function definition
@@ -48,7 +55,8 @@ RMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
-# check error metric
+# calculate error metrics
+print("calculate error metrics")
 RMSE(as.numeric(test_set$rating), as.numeric(y_hat))
 
 # proportion of ratings at testset
@@ -73,7 +81,10 @@ db %>%
   ggtitle("Proportion actual x predicted")
 
 # save model
+# print("save the model")
 # save(multinom_fit, file="./mdl/multinom_fit-2.RData")
 
 # restore warnings
 options(warn = oldw)
+
+print("job done")

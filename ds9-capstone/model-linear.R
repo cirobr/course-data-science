@@ -1,5 +1,5 @@
 # R version: 4.1.0
-setwd("~/projects/data-science-course/ds9-capstone")
+# setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
 oldw <- getOption("warn")
