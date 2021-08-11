@@ -17,14 +17,17 @@ library(nnet)
 
 options(digits = 3)
 subset_size = 500000
-number_of_iterations <- 100
+number_of_iterations <- 500
 
-# read dataset from csv
+# read datasets from csv
 train_set <- read_csv(file = "./dat/train.csv")
 test_set <- read_csv(file = "./dat/test.csv")
 
 # prepare datasets for categorical analysis
+train_set <- train_set %>% select(-c(userId, movieId))
 train_set$rating <- as.factor(train_set$rating)
+
+test_set <- test_set %>% select(-c(userId, movieId))
 test_set$rating <- as.factor(test_set$rating)
 
 # creates small subset for experiments
@@ -32,7 +35,7 @@ test_set$rating <- as.factor(test_set$rating)
 
 # fit multi-class logistic regression
 multinom_fit <- train_set %>%
-  multinom(rating ~ userId + movieId,
+  multinom(rating ~ .,
            data = .,
            maxit=number_of_iterations)
 # load(file="./mdl/multinom_fit.RData")
@@ -70,7 +73,7 @@ db %>%
   ggtitle("Proportion actual x predicted")
 
 # save model
-# save(multinom_fit, file="./mdl/multinom_fit.RData")
+# save(multinom_fit, file="./mdl/multinom_fit-2.RData")
 
 # restore warnings
 options(warn = oldw)

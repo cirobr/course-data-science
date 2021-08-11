@@ -28,16 +28,18 @@ rating_to_predict = 4  # stored model developed for "4"
 
 # prepare datasets for categorical analysis
 train_set <- train_set %>%
+  select(-c(userId, movieId)) %>%
   mutate(y = as.numeric(rating == rating_to_predict)) %>%
   select(-c(rating))
 
 test_set <- test_set %>%
+  select(-c(userId, movieId)) %>%
   mutate(y = as.numeric(rating == rating_to_predict)) %>%
   select(-c(rating))
 
 # fit the model
 # logit_fit <- train_set %>%
-#   glm(y ~ userId + movieId,
+#   glm(y ~ .,
 #       data=.,
 #       family=binomial)
 # load(file="./mdl/logit_fit.RData")
@@ -71,7 +73,7 @@ data.frame(cutoff, err) %>%
   geom_label(label = sprintf("%0.2f", round(err, digits = 2)), size = 2, nudge_y = -0.02)
 
 # save model
-# save(logit_fit, file="./mdl/logit_fit.RData")
+# save(logit_fit, file="./mdl/logit_fit-2.RData")
 
 # restore warnings
 options(warn = oldw)
