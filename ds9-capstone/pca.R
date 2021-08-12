@@ -1,12 +1,11 @@
 # R version: 4.1.0
-#setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
 # oldw <- getOption("warn")
 # options(warn = -1)
 
 # clean memory
-rm(edx, edx2)
+rm(edx)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
@@ -29,5 +28,9 @@ train_set <- read_csv(file = "./dat/train.csv")
 df <- train_set %>% select(-c(rating))
 
 # pca
-res.pca <- prcomp(train_set, center = TRUE, scale. = TRUE)
-summary(res.pca)
+res.pca <- prcomp(df, center = TRUE, scale. = TRUE)
+s <- summary(res.pca)
+ind <- max(which(s$importance[3,] < 0.95))
+df_pca <- s$x[,1:ind] %>% as.data.frame()
+df_pca <- cbind(train_set$rating, df_pca)
+head(df_pca)

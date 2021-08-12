@@ -31,7 +31,7 @@ edx2 <- subset(edx, select = -c(timestamp, title, genres))
 edx2$rating <- as.factor(edx2$rating)
 edx2 <- cbind(edx2, df)
 head(edx2)
-edx2 %>% as.data.frame() %>% write_csv(file = "./dat/edx2.csv")
+#edx2 %>% as.data.frame() %>% write_csv(file = "./dat/edx2.csv")
 #rm(edx)
 
 # split edx in train and test sets

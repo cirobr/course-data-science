@@ -1,6 +1,5 @@
 # R version: 4.1.0
 print("job start")
-# setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
 oldw <- getOption("warn")
@@ -8,7 +7,7 @@ options(warn = -1)
 
 # clean memory
 print("clean memory")
-rm(edx, edx2)
+rm(edx)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
@@ -27,24 +26,24 @@ print("read csv datasets")
 train_set <- read_csv(file = "./dat/train.csv")
 test_set <- read_csv(file = "./dat/test.csv")
 
-# prepare datasets for categorical analysis
+# prepare datasets
 print("prepare datasets")
 train_set <- train_set %>% select(c(userId, movieId, rating))
-train_set$rating <- as.factor(train_set$rating)
-
 test_set <- test_set %>% select(c(userId, movieId, rating))
+
+train_set$rating <- as.factor(train_set$rating)
 test_set$rating <- as.factor(test_set$rating)
 
 # creates small subset for experiments
 # df <- head(train_set, n=subset_size)
 
-# fit multi-class logistic regression
+# fit the model
 print("fit the model")
-multinom_fit <- train_set %>%
-  multinom(rating ~ .,
-           data = .,
-           maxit=number_of_iterations)
-# load(file="./mdl/multinom_fit-2.RData")
+# multinom_fit <- train_set %>%
+#   multinom(rating ~ .,
+#            data = .,
+#            maxit=number_of_iterations)
+load(file="./mdl/multinom_fit.RData")
 
 # predict the outcome
 print("predict the outcome")
@@ -82,7 +81,7 @@ db %>%
 
 # save model
 # print("save the model")
-# save(multinom_fit, file="./mdl/multinom_fit-2.RData")
+# save(multinom_fit, file="./mdl/multinom_fit.RData")
 
 # restore warnings
 options(warn = oldw)
