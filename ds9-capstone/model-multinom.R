@@ -29,10 +29,10 @@ test_set <- read_csv(file = "./dat/test.csv")
 
 # prepare datasets for categorical analysis
 print("prepare datasets")
-train_set <- train_set %>% select(-c(userId, movieId))
+train_set <- train_set %>% select(c(userId, movieId, rating))
 train_set$rating <- as.factor(train_set$rating)
 
-test_set <- test_set %>% select(-c(userId, movieId))
+test_set <- test_set %>% select(c(userId, movieId, rating))
 test_set$rating <- as.factor(test_set$rating)
 
 # creates small subset for experiments
@@ -40,11 +40,11 @@ test_set$rating <- as.factor(test_set$rating)
 
 # fit multi-class logistic regression
 print("fit the model")
-# multinom_fit <- train_set %>%
-#   multinom(rating ~ .,
-#            data = .,
-#            maxit=number_of_iterations)
-load(file="./mdl/multinom_fit-2.RData")
+multinom_fit <- train_set %>%
+  multinom(rating ~ .,
+           data = .,
+           maxit=number_of_iterations)
+# load(file="./mdl/multinom_fit-2.RData")
 
 # predict the outcome
 print("predict the outcome")

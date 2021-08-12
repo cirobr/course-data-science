@@ -1,5 +1,5 @@
 # R version: 4.1.0
-setwd("~/projects/data-science-course/ds9-capstone")
+#setwd("~/projects/data-science-course/ds9-capstone")
 
 # suppress warnings
 # oldw <- getOption("warn")
@@ -25,8 +25,9 @@ train_set <- read_csv(file = "./dat/train.csv")
 #train_set$rating <- as.factor(train_set$rating)
 
 # creates small subset for experiments
-df <- head(train_set, n=subset_size) %>% select(-c(rating, userId, movieId))
+#df <- head(train_set, n=subset_size) %>% select(-c(rating))
+df <- train_set %>% select(-c(rating))
 
 # pca
-res.pca <- prcomp(df, scale = FALSE)
-fviz_eig(res.pca)
+res.pca <- prcomp(train_set, center = TRUE, scale. = TRUE)
+summary(res.pca)
