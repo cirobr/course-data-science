@@ -7,7 +7,7 @@ options(warn = -1)
 
 # clean memory
 print("clean memory")
-rm(edx)
+rm(edx, edx2)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
@@ -51,11 +51,11 @@ rm(df)
 
 # fit the model
 print("fit the model")
-multinom_pca_fit <- train_set_pca %>%
-  multinom(rating ~ .,
-           data = .,
-           maxit=number_of_iterations)
-# load(file="./mdl/multinom_pca_fit.RData")
+# multinom_pca_fit <- train_set_pca %>%
+#   multinom(rating ~ .,
+#            data = .,
+#            maxit=number_of_iterations)
+load(file="./mdl/multinom_pca_fit.RData")
 
 # predict the outcome
 print("predict the outcome")
@@ -70,30 +70,30 @@ RMSE <- function(true_ratings, predicted_ratings){
 print("calculate error metrics")
 RMSE(as.numeric(test_set_pca$rating), as.numeric(y_hat))
 
-# # proportion of ratings at testset
-# db1 <- test_set$rating %>% as.character() %>% data.frame()
-# colnames(db1) <- "ratings"
-# db1 <- db1 %>% group_by(ratings) %>% summarize(qty = n())
-# db1$group <- "actual"
-# db1 <- db1[,c("ratings", "group", "qty")]
-#
-# # proportion of predicted ratings
-# db2 <- y_hat %>% as.character() %>% data.frame()
-# colnames(db2) <- "ratings"
-# db2 <- db2 %>% group_by(ratings) %>% summarize(qty = n())
-# db2$group <- "predicted"
-# db2 <- db2[,c("ratings", "group", "qty")]
-# db <- bind_rows(db1, db2)
-#
-# # plot the chart
-# db %>%
-#   ggplot(aes(ratings, qty, fill=group)) +
-#   geom_bar(stat="identity", position = "dodge") +
-#   ggtitle("Proportion actual x predicted")
-#
+# proportion of ratings at testset
+db1 <- test_set$rating %>% as.character() %>% data.frame()
+colnames(db1) <- "ratings"
+db1 <- db1 %>% group_by(ratings) %>% summarize(qty = n())
+db1$group <- "actual"
+db1 <- db1[,c("ratings", "group", "qty")]
+
+# proportion of predicted ratings
+db2 <- y_hat %>% as.character() %>% data.frame()
+colnames(db2) <- "ratings"
+db2 <- db2 %>% group_by(ratings) %>% summarize(qty = n())
+db2$group <- "predicted"
+db2 <- db2[,c("ratings", "group", "qty")]
+db <- bind_rows(db1, db2)
+
+# plot the chart
+db %>%
+  ggplot(aes(ratings, qty, fill=group)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Proportion actual x predicted")
+
 # save model
-print("save the model")
-save(multinom_pca_fit, file="./mdl/multinom_pca_fit.RData")
+# print("save the model")
+# save(multinom_pca_fit, file="./mdl/multinom_pca_fit.RData")
 
 # restore warnings
 options(warn = oldw)

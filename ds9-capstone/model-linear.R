@@ -7,7 +7,7 @@ options(warn = -1)
 
 # clean memory
 print("clean memory")
-rm(edx)
+rm(edx, edx2)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
@@ -31,17 +31,17 @@ test_set <- test_set %>% select(c(userId, movieId, rating))
 
 # creates small size subset for experiences
 # df <- head(train_set, n=subset_size)
-# rm(train_set)
 
 # fit the model
 print("fit the model")
-# fit <- lm(rating ~ .,
+# lm_fit <- lm(rating ~ .,
 #           data = train_set)
-load(file="./mdl/fit.RData")
+
+load(file="./mdl/lm_fit.RData")
 
 # predict the outcome
 print("predict the outcome")
-y_hat <- predict(fit, test_set) %>% as.numeric()
+y_hat <- predict(lm_fit, test_set) %>% as.numeric()
 
 # rmse function definition
 RMSE <- function(true_ratings, predicted_ratings){
@@ -54,7 +54,7 @@ RMSE(test_set$rating, y_hat)
 
 # save model
 # print("save the model")
-# save(fit, file="./mdl/fit.RData")
+# save(lm_fit, file="./mdl/lm_fit.RData")
 
 # restore warnings
 options(warn = oldw)

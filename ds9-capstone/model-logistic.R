@@ -7,7 +7,7 @@ options(warn = -1)
 
 # clean memory
 print("clean memory")
-rm(edx)
+rm(edx, edx2)
 rm(vector, df, test_index, p, p1, p2)
 
 # environment
@@ -40,10 +40,10 @@ test_set <- test_set %>% select(c(userId, movieId, rating)) %>%
 
 # fit the model
 print("fit the model")
-# logit_fit <- train_set %>%
-#   glm(y ~ .,
-#       data=.,
-#       family=binomial)
+# logit_fit <- glm(y ~ .,
+#                  data = train_set,
+#                  family=binomial)
+
 load(file="./mdl/logit_fit.RData")
 
 # predict the outcome
