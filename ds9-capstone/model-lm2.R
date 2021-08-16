@@ -14,71 +14,85 @@ rm(vector, df, test_index, p, p1, p2)
 print("setup environment")
 library(ggplot2)
 library(plyr)
-library(caret)
 library(tidyverse)
+library(caret)
 
 options(digits = 3)
-subset_size = 50000
+subset_size = 5000
 
 # read csv datasets
 print("read csv datasets")
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
-if(!exists("test_set")) {test_set <- read_csv(file = "./dat/test.csv")}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")}
 
 # prepare datasets
-print("prepare datasets")
-train_set <- train_set %>% select(c(userId, movieId, rating))
-test_set <- test_set %>% select(c(userId, movieId, rating))
+#print("prepare datasets")
+#df_train <- train_set %>% select(c(userId, movieId, rating))
+#df_test  <- test_set %>% select(c(userId, movieId, rating))
 
 # creates small size subset for experiences
 # df <- head(train_set, n=subset_size)
 
-# rmse function definition
+# define error function
 RMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
-# first approach - naive average
-predicted <- rep(mean(train_set$rating), nrow(train_set))
-predicted <- round_any(predicted, 0.5)
-err <- RMSE(train_set$rating, predicted)
+# define rating by class function
+rbc <- function(ratings, group_name){
+  db <- ratings %>% as.character() %>% data.frame()
+  colnames(db) <- "ratings"
+  db <- db %>% group_by(ratings) %>% summarize(qty = n())
+  db$group <- group_name
+  db <- db[,c("group", "ratings", "qty")]
+  db
+}
+
+# store actual distribution by class on database
+db <- rbc(test_set$rating, "1-test_set")
+
+# fit the model
+print("fit naive average model")
+mu <- mean(train_set$rating)
+
+print("predict outcome")
+predicted <- round_any(rep(mu, nrow(test_set)), 0.5)
+
+print("calculate error")
+err <- RMSE(test_set$rating, predicted)
 err
-rmse_results <- data.frame(method = "naive",
+
+rmse_results <- data.frame(method = "2-naive_average",
                            RMSE = err)
 
-# fit by userId
-fit <- lm(rating ~ userId,
-          data = train_set)
-predicted <- predict(fit, test_set)
-predicted <- round_any(predicted, 0.5)
-err <- RMSE(train_set$rating, predicted)
+db <- bind_rows(db, rbc(predicted, "2-naive_average"))
+
+# fit the model
+print("fit linear regression model")
+lm_fit <- lm(rating ~ userId + movieId,
+             data = train_set)
+
+print("predict outcome")
+predicted <- round_any(predict(lm_fit, test_set), 0.5)
+
+print("calculate error")
+err <- RMSE(test_set$rating, predicted)
 err
-rmse_results <- bind_rows(rmse_results, data.frame(method = "by user",
+
+rmse_results <- bind_rows(rmse_results, data.frame(method = "3-linear_regression",
                                                    RMSE = err))
 
-# fit by movieId
-fit <- lm(rating ~ movieId,
-          data = train_set)
-predicted <- predict(fit, test_set)
-predicted <- round_any(predicted, 0.5)
-err <- RMSE(train_set$rating, predicted)
-err
-rmse_results <- bind_rows(rmse_results, data.frame(method = "by movie",
-                                                   RMSE = err))
-
-# fit by user + movie
-fit <- lm(rating ~ userId + movieId,
-          data = train_set)
-predicted <- round(predict(fit, test_set), 1)
-predicted <- round_any(predicted, 0.5)
-err <- RMSE(train_set$rating, predicted)
-err
-rmse_results <- bind_rows(rmse_results, data.frame(method = "user and movie",
-                                                   RMSE = err))
+db <- bind_rows(db, rbc(predicted, "3-linear_regression"))
 
 
 
 
+
+# plot the chart
+db %>%
+  ggplot(aes(ratings, qty, fill=group)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Proportion actual x predicted")
 
 # restore warnings
 options(warn = oldw)

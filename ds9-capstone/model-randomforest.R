@@ -1,4 +1,5 @@
 # R version: 4.1.0
+print("job start")
 
 # suppress warnings
 oldw <- getOption("warn")
@@ -6,39 +7,45 @@ options(warn = -1)
 
 # clean memory
 print("clean memory")
-
 rm(edx, edx2)
 rm(vector, df, test_index, p, p1, p2)
 
+rm(lm_fit, lm_multinom, df_train, df_test)
+
 # environment
 print("setup environment")
-
 library(ggplot2)
-library(caret)
+library(plyr)
 library(tidyverse)
+library(caret)
+library(nnet)
+library(varhandle)
 library(randomForest)
 
 options(digits = 3)
-subset_size = 50000
+subset_size = 5000
 
 # read csv datasets
 print("read csv datasets")
-
-train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()
-test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")}
 
 # prepare datasets
 print("prepare datasets")
 
-rating <- as.factor(train_set$rating)
-train_set <- train_set %>% select(-c(rating)) %>% mutate(across(userId:NoGenre, as.integer))
-train_set <- bind_cols(rating=rating, train_set)
-#head(train_set)
+df_train <- train_set %>% as.tibble()
+df_test  <- test_set %>% as.tibble()
 
-rating <- as.factor(test_set$rating)
-test_set <- test_set %>% select(-c(rating)) %>% mutate(across(userId:NoGenre, as.integer))
-test_set <- bind_cols(rating=rating, test_set)
-#head(test_set)
+rating <- as.factor(df_train$rating)
+lev <- levels(rating)
+df_train <- df_train %>% select(-c(rating)) %>% mutate(across(userId:NoGenre, as.integer))
+df_train <- bind_cols(rating=rating, df_train)
+head(df_train)
+
+rating <- as.factor(df_test$rating)
+df_test <- df_test %>% select(-c(rating)) %>% mutate(across(userId:NoGenre, as.integer))
+df_test <- bind_cols(rating=rating, df_test)
+head(df_test)
 
 # creates small subset for experiments
 # df <- head(train_set, n=subset_size)
@@ -46,55 +53,41 @@ test_set <- bind_cols(rating=rating, test_set)
 # fit the model
 print("fit the model")
 
-rf_fit <- randomForest(rating ~ .,
-                       ntree = 50,
-                       proximity = FALSE,
-                       data = train_set)
-                       #data = df)
+# rf_fit <- df_train %>%
+#   randomForest(rating ~ .,
+#                ntree = 50,
+#                proximity = FALSE,
+#                data = .)
 
-# load(file="./mdl/rf_fit.RData")
+load(file="./mdl/rf_fit.RData")
 
 # predict the outcome
 print("predict the outcome")
-y_hat <- predict(rf_fit, test_set, type = "class")
-
-# rmse function definition
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
+predicted <- predict(rf_fit, df_test, type = "class")
 
 # calculate error metrics
 print("calculate error metrics")
-RMSE(as.numeric(test_set$rating), as.numeric(y_hat))
+err <- RMSE(test_set$rating, unfactor(predicted))
+err
 
-# confusion matrix analysis
-cm <- confusionMatrix(y_hat, test_set$rating)
-cm
+rmse_results <- bind_rows(rmse_results, data.frame(model = "randomForest",
+                                                   RMSE = err))
 
-# proportion of ratings at testset
-db1 <- test_set$rating %>% as.character() %>% data.frame()
-colnames(db1) <- "ratings"
-db1 <- db1 %>% group_by(ratings) %>% summarize(qty = n())
-db1$group <- "actual"
-db1 <- db1[,c("ratings", "group", "qty")]
+db <- bind_rows(db, rbc(predicted, "5-randomForest"))
 
-# proportion of predicted ratings
-db2 <- y_hat %>% as.character() %>% data.frame()
-colnames(db2) <- "ratings"
-db2 <- db2 %>% group_by(ratings) %>% summarize(qty = n())
-db2$group <- "predicted"
-db2 <- db2[,c("ratings", "group", "qty")]
-db <- bind_rows(db1, db2)
 
-# plot the chart
-db %>%
-  ggplot(aes(ratings, qty, fill=group)) +
-  geom_bar(stat="identity", position = "dodge") +
-  ggtitle("Proportion actual x predicted")
+
+
+
+# show RMSE results
+rmse_results
+
+# plot ratings distribution
+plt(db)
 
 # save model
-print("save the model")
-save(rf_fit, file="./mdl/rf_fit.RData")
+# print("save the model")
+# save(rf_fit, file="./mdl/rf_fit.RData")
 
 # restore warnings
 options(warn = oldw)
