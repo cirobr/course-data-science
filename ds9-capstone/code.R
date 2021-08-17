@@ -116,7 +116,6 @@ predicted <- predict(multinom_fit, df_test)
 # calculate error metrics
 print("calculate error")
 err <- RMSE(test_set$rating, unfactor(predicted))
-err
 
 rmse_results <- bind_rows(rmse_results, data.frame(model = "multinomLinear",
                                                    RMSE = err))

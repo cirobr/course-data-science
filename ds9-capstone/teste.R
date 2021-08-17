@@ -37,30 +37,30 @@ if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")}
 
 # prepare datasets
 print("prepare datasets")
-df_train <- train_set # %>% select(c(userId, movieId, rating))
-df_test  <- test_set  # %>% select(c(userId, movieId, rating))
+df_train <- train_set %>% select(c(userId, movieId, rating))
+df_test  <- test_set  %>% select(c(userId, movieId, rating))
 
 df_train$rating <- as.factor(df_train$rating)
 df_test$rating  <- as.factor(df_test$rating)
 
-# find logical predictors with frequency higher than threshold
-nr <- nrow(train_set)
-
-threshold_genres <- train_set %>% 
-  select(-c(userId, movieId, rating)) %>%
-  colSums() / nr %>%
-  sort(decreasing = TRUE)
-threshold_genres <- tibble(genres=names(threshold_genres), p=threshold_genres) %>%
-  filter(p > threshold) %>% 
-  select(genres)
-threshold_genres <- threshold_genres$genres
-
-frequent_predictors <- c(c("userId", "movieId", "rating"), threshold_genres)
-
-# select frequent predictors
-df_train <- df_train %>% select(frequent_predictors)
-df_test  <- df_test  %>% select(frequent_predictors)
-
+# # find logical predictors with frequency higher than threshold
+# nr <- nrow(train_set)
+# 
+# threshold_genres <- train_set %>% 
+#   select(-c(userId, movieId, rating)) %>%
+#   colSums() / nr %>%
+#   sort(decreasing = TRUE)
+# threshold_genres <- tibble(genres=names(threshold_genres), p=threshold_genres) %>%
+#   filter(p > threshold) %>% 
+#   select(genres)
+# threshold_genres <- threshold_genres$genres
+# 
+# frequent_predictors <- c(c("userId", "movieId", "rating"), threshold_genres)
+# 
+# # select frequent predictors
+# df_train <- df_train %>% select(frequent_predictors)
+# df_test  <- df_test  %>% select(frequent_predictors)
+# 
 # creates small subset for experiments
 df <- head(df_train, n=subset_size)
 
