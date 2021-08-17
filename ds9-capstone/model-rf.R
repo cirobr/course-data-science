@@ -58,7 +58,7 @@ df <- head(train_set, n=subset_size)
 # fit the model
 print("fit the model")
 
-rf_fit <- df %>%
+rf_fit <- df_train %>%
   randomForest(rating ~ .,
                ntree = 50,
                proximity = FALSE,
