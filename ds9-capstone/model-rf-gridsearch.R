@@ -5,36 +5,29 @@ print("job start")
 oldw <- getOption("warn")
 options(warn = -1)
 
-# clean memory
-print("clean memory")
-rm(edx, edx2)
-
 # environment
 print("setup environment")
+# library(plyr)                 # used as plyr::round_any()
+# library(varhandle)            # used as varhandle::unfactor()
 library(ggplot2)
-# library(plyr)
 library(dplyr)
 library(tidyverse)
-library(varhandle)            # unfactor() function
 library(caret)
-library(nnet)
 library(randomForest)
+library(nnet)
 library(doParallel)
 
 options(digits = 3)
-subset_size = 5000
+subset_size = 50000
+
+# paralell processing
 number_of_processor_cores = 3
 cl <- makePSOCKcluster(number_of_processor_cores)
 
-# define error function
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
-
 # read csv datasets
 print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")}
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()}
 
 # prepare datasets
 print("prepare datasets")
@@ -60,7 +53,7 @@ df_test <- bind_cols(rating=ratingFactor, df_test)
 df <- head(df_train, n=subset_size)
 
 # fit the model
-print("fit tuneGrid randomForest model")
+print("fit randomForest model")
 modelLookup("rf")
 
 control <- trainControl(method = "cv", 
@@ -75,8 +68,8 @@ print("multi-core ON")
 registerDoParallel(cl)
 
 set.seed(1, sample.kind = "Rounding")
-rf_bestfit <- df_train %>%
-# rf_bestfit <- df %>%
+rf_bestfit <- df %>%
+# rf_bestfit <- df_train %>%
   train(rating ~ .,
         method = "rf",
         ntree = 75,
@@ -92,12 +85,10 @@ ggplot(rf_bestfit, highlight = TRUE)
 rf_bestfit$bestTune
 rf_bestfit$finalModel
 
-# load(file="./mdl/rf_bestfit.RData")
-
 # predict the outcome
 print("predict the outcome")
 predicted <- predict(rf_bestfit, df_test)
-predictedNonFactor <- unfactor(predicted)
+predictedNonFactor <- varhandle::unfactor(predicted)
 
 # calculate error metrics
 print("calculate error metrics")
@@ -107,8 +98,8 @@ err
 hist(predictedNonFactor)
 
 # save model
-print("save the model")
-save(rf_bestfit, file="./mdl/rf_bestfit.RData")
+# print("save the model")
+# save(rf_bestfit, file="./mdl/rf_bestfit.RData")
 
 # restore warnings
 options(warn = oldw)
