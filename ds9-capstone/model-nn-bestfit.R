@@ -10,43 +10,34 @@ print("clean memory")
 
 # environment
 print("setup environment")
+# library(plyr)                 # used as plyr::round_any()
+# library(varhandle)            # used as varhandle::unfactor()
 library(ggplot2)
-# library(plyr)
 library(dplyr)
 library(tidyverse)
-library(varhandle)            # unfactor() function
 library(caret)
-library(nnet)
 library(randomForest)
+library(nnet)
 library(doParallel)
 
 options(digits = 3)
-subset_size = 500000
+subset_size = 5000
 number_of_iterations <- 200
-number_of_processor_cores = 2
+
+# paralell processing
+number_of_processor_cores = 3
+cl <- makePSOCKcluster(number_of_processor_cores)
 
 # read csv datasets
 print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv")}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")}
-
-# define error function
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()}
 
 # prepare datasets
 print("prepare datasets")
-df_train <- train_set %>% as_tibble()
-df_test  <- test_set %>% as_tibble()
+df_train <- train_set %>% as.tibble() %>% select(c(userId, movieId, rating))
+df_test  <- test_set %>% as.tibble()  %>% select(c(userId, movieId, rating))
 
-# remove rows with small variance
-# nzv <- nearZeroVar(df_train)
-nzv <- c(16, 17, 19, 21, 22, 23)   # remover após testes
-df_train <- df_train[,-nzv]
-df_test <- df_test[,-nzv]
-
-# factor the outcome
 df_train$rating <- as.factor(df_train$rating)
 df_test$rating <- as.factor(df_test$rating)
 
@@ -57,13 +48,15 @@ df <- head(df_train, n=subset_size)
 print("fit nnet model")
 modelLookup("nnet")
 
-control <- trainControl(method = "cv", number = 10, p = .9)
+control <- trainControl(method = "cv", 
+                        number = 10, 
+                        p = .9,
+                        verboseIter = TRUE)
 
-gridSearch <- expand.grid(size = seq(from = 10, to = 20, by = 10),
-                          decay = seq(from = 0.0, to = 0.1, by = 0.05))
+gridSearch <- expand.grid(size = seq(from = 10, to = 50, by = 10),
+                          decay = seq(from = 0.0, to = 0.0001, by = 0.00002))
 
 print("multi-core ON")
-cl <- makePSOCKcluster(number_of_processor_cores)
 registerDoParallel(cl)
 
 set.seed(1, sample.kind = "Rounding")
@@ -83,12 +76,10 @@ ggplot(nnet_bestfit, highlight = TRUE)
 nnet_bestfit$bestTune
 nnet_bestfit$finalModel
 
-# load(file="./mdl/nnet_bestfit.RData")
-
 # predict the outcome
 print("predict the outcome")
 predicted <- predict(nnet_bestfit, df_test)
-predictedNonFactor <- unfactor(predicted)
+predictedNonFactor <- varhandle::unfactor(predicted)
 
 # calculate error metrics
 print("calculate error metrics")

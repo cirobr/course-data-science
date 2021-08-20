@@ -18,22 +18,22 @@ library(nnet)
 library(doParallel)
 
 options(digits = 3)
-subset_size = 50000
+subset_size = 5000
 number_of_iterations <- 250
 
 # paralell processing
-number_of_processor_cores = 3
+number_of_processor_cores = 4
 cl <- makePSOCKcluster(number_of_processor_cores)
 
 # read csv datasets
 print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()}
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as_tibble()}
 
 # prepare datasets
 print("prepare datasets")
-df_train <- train_set # %>% select(c(userId, movieId, rating))
-df_test  <- test_set  # %>% select(c(userId, movieId, rating))
+df_train <- train_set %>% select(c(rating:year_stamp))
+df_test  <- test_set  %>% select(c(rating:year_stamp))
 
 df_train$rating <- as.factor(df_train$rating)
 df_test$rating  <- as.factor(df_test$rating)
@@ -50,16 +50,18 @@ control <- trainControl(method = "cv",
                         p = .9,
                         verboseIter = TRUE)
 
-gridSearch <- data.frame(decay = seq(0, 0.1, 0.05))
+gridSearch <- data.frame(decay = seq(0, 1e-1, by = 2e-2))
 
 print("multi-core ON")
 registerDoParallel(cl)
 
 set.seed(1, sample.kind = "Rounding")
-multinom_bestfit <- df %>%
-#multinom_bestfit <- df_train %>%
+# multinom_bestfit <- df %>%
+multinom_bestfit <- df_train %>%
   train(rating ~ ., 
         method = "multinom", 
+        metric = "Accuracy",
+        preProcess = c('center', 'scale'),
         data = .,
         maxit = number_of_iterations,
         tuneGrid = gridSearch,
@@ -68,7 +70,7 @@ multinom_bestfit <- df %>%
 
 stopCluster(cl)   # multi-core off
 
-ggplot(multinom_bestfit, highlight = TRUE)
+ggplot(multinom_bestfit, highlight = TRUE)   # metric = "Accuracy", 
 multinom_bestfit$bestTune
 multinom_bestfit$finalModel
 
@@ -85,8 +87,8 @@ err
 hist(predictedNonFactor)
 
 # save model
-# print("save the model")
-# save(multinom_bestfit, file="./mdl/multinom_bestfit.RData")
+print("save the model")
+save(multinom_bestfit, file="./mdl/multinom_bestfit.RData")
 
 # restore warnings
 options(warn = oldw)
