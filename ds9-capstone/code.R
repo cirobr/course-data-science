@@ -29,7 +29,7 @@ if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as
 if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()}
 
 # define error function
-RMSE <- function(true_ratings, predicted_ratings){
+errRMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
@@ -41,14 +41,17 @@ print("predict outcome")
 predicted <- plyr::round_any(rep(mu, nrow(test_set)), 0.5)
 
 print("calculate error")
-err <- RMSE(test_set$rating, predicted)
+err <- errRMSE(test_set$rating, predicted)
 
 rmse_results <- data.frame(model = "naiveAvg",
-                           RMSE = err)
+                           error = err)
 
 
 # fit the model
 print("fit linear regression model")
+modelLookup("lm")
+
+# comment on code for cration of the pre-built model
 # lm_fit <- lm(rating ~ userId + movieId,
 #              data = train_set)
 
@@ -56,22 +59,23 @@ print("fit linear regression model")
 load(file="./mdl/lm_fit.RData")
 
 print("predict outcome")
-predicted <- plyr::round_any(predict(lm_fit, test_set), 0.5)
-rm(lm_fit)
+predicted <- plyr::round_any(predict(lm_fit, test_set), 0.5) %>% as.numeric()
 
 print("calculate error")
-err <- RMSE(test_set$rating, predicted)
+err <- errRMSE(test_set$rating, predicted)
 
 rmse_results <- bind_rows(rmse_results, data.frame(model = "linearReg",
-                                                   RMSE = err))
+                                                   error = err))
+
+# clean memory
+rm(lm_fit)
+
+
 
 
 
 # show RMSE results
 rmse_results
-
-# save the model
-# save(lm_fit, file="./mdl/lm_fit.RData")
 
 # restore warnings
 options(warn = oldw)

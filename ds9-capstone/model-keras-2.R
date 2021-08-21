@@ -28,6 +28,10 @@ errRMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
+# paralell processing
+# number_of_processor_cores = 2
+# cl <- makePSOCKcluster(number_of_processor_cores)
+
 # read csv datasets
 print("read csv datasets")
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
@@ -37,18 +41,21 @@ if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as_
 print("prepare datasets")
 
 # predictors
-df_train <- train_set %>% select(-c("rating")) %>% as.matrix()
-df_test  <- test_set  %>% select(-c("rating")) %>% as.matrix()
+df_train <- train_set %>% select(-c("rating", "year_stamp")) %>% as.matrix()
+df_test  <- test_set  %>% select(-c("rating", "year_stamp")) %>% as.matrix()
 
 # outcome labels
-df_train_labels <- train_set$rating %>% as.vector()
-df_test_labels  <- test_set$rating  %>% as.vector()
+df_train_labels <- train_set$rating %>% as.numeric()
+df_test_labels  <- test_set$rating  %>% as.numeric()
 
 # center and scale data
 # nc <- ncol(df_train)
 # df_train <- df_train %>% mutate(across(1:nc, scale)) %>% as.matrix()
 # df_test  <- df_test  %>% mutate(across(1:nc, scale)) %>% as.matrix()
 
+# creates small subset for experiments
+# df <- head(df_train, n=subset_size)
+# df_labels <- head(df_train_labels, n=subset_size)
 
 # fit the model
 
@@ -83,3 +90,4 @@ print("calculate error metrics")
 err <- errRMSE(test_set$rating, predicted)
 err
 hist(predicted)
+
