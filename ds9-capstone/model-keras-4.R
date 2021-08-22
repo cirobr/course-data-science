@@ -7,21 +7,12 @@ print("job start")
 
 # environment
 print("setup environment")
-# library(plyr)                 # used as plyr::round_any()
-# library(varhandle)            # used as varhandle::unfactor()
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
-#library(caret)
-#library(randomForest)
-#library(nnet)
-#library(BBmisc)
 library(keras)
-# library(tensorflow)
-library(doParallel)
 
 options(digits = 3)
-subset_size = 500000
 
 # define error function
 errRMSE <- function(true_ratings, predicted_ratings){
@@ -31,24 +22,35 @@ errRMSE <- function(true_ratings, predicted_ratings){
 # read csv datasets
 print("read csv datasets")
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as_tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as_tibble()}
 
 # prepare datasets
 print("prepare datasets")
 
-# predictors
-X_train <- train_set %>% select(-c("rating")) %>% as.matrix()
-X_test  <- test_set  %>% select(-c("rating")) %>% as.matrix()
+# center and scale data
+df_train <- train_set %>% mutate(across(2:4, scale)) %>% as.matrix() %>% as_tibble()
+df_test  <- test_set  %>% mutate(across(2:4, scale)) %>% as.matrix() %>% as_tibble()
 
-# outcome labels
-y_train <- train_set$rating %>% as.vector()
-y_test  <- test_set$rating  %>% as.vector()
+# predictors
+X_train <- df_train %>% select(-c("rating")) %>% as.matrix()
+X_test  <- df_test  %>% select(-c("rating")) %>% as.matrix()
+
+# outcome (keras) factors [0 to 9]
+y_train <- train_set$rating %>% as.factor() %>% as.numeric() - 1
+y_test  <- test_set$rating  %>% as.factor() %>% as.numeric() - 1
+
+# outcome levels
+yLevels <- train_set$rating %>% as.factor() %>% levels()
+
+# clean memory
+rm(df_train, df_test)
 
 # fit the model
 
 # setup layers
 D <- ncol(X_train)
 model <- keras_model_sequential()
+
 model %>%
   layer_dense(units = D, input_shape = c(D), activation = 'relu') %>%
   # layer_dropout(0.2) %>%
@@ -75,9 +77,9 @@ score
 # predict the outcome
 print("predict the outcome")
 predictedMatrix <- model %>% predict(X_test)
-colnames(predictedMatrix) <- c(0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+colnames(predictedMatrix) <- yLevels
 predicted <- apply(predictedMatrix, 1, which.max)
-predicted <- as.numeric(predicted)
+predicted <- as.numeric(yLevels[predicted])
 
 # calculate error metrics
 print("calculate error metrics")
@@ -85,5 +87,5 @@ err <- errRMSE(test_set$rating, predicted)
 err
 hist(predicted)
 
-# cleanup memory
+# cleanup
 rm(X_train, X_test, y_train, y_test)
