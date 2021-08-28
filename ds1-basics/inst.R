@@ -1,11 +1,10 @@
-# install dependencies
+# dependencies
 pkg <- c("e1071",
          "vctrs"
 )
 install.packages(pkg)
 
-
-# install packages for a fresh start
+# main packages
 pkg <- c("dslabs",          # datasets for the course
          "ggplot2",         # plot data, charts and graphs
          "ggthemes",        # graphic themes for ggplot
@@ -17,8 +16,7 @@ pkg <- c("dslabs",          # datasets for the course
 )
 install.packages(pkg)
 
-
-# data wrangling packages
+# data wrangling
 pkg <- c("dplyr",           # contains tidyverse
          #"tidyverse",       # readr, rvest included
          "readxl",
@@ -27,14 +25,13 @@ pkg <- c("dplyr",           # contains tidyverse
 )
 install.packages(pkg)
 
-
 # matrices
 pkg <- c("matrixStats")
 install.packages(pkg)
 
-
-# machine learning important packages
+# machine learning
 pkg <- c(#"tidyverse",
          #"caret",
-         "randomForest")
+         "randomForest",
+         "keras")
 install.packages(pkg)
