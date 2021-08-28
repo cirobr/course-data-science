@@ -62,26 +62,6 @@ test_set <- edx2 %>% slice(test_index)
 train_set <- edx2 %>% slice(-test_index)
 rm(edx2, test_index)
 
-# remove movies and users from testset that are not present on trainset
-test_set <- test_set %>%
-  semi_join(train_set, by = "movieId") %>%
-  semi_join(train_set, by = "userId")
-
-# remove columns with small variance
-df_train <- train_set %>% select(-rating)
-nzv <- nearZeroVar(df_train, foreach = TRUE, allowParallel = TRUE)
-colnames(df_train[,nzv])
-df_train <- df_train[,-nzv]
-train_set <- bind_cols(rating=train_set$rating, df_train)
-rm(df_train)
-
-df_test <- test_set %>% select(-rating)
-colnames(df_test[,nzv])
-df_test <- df_test[,-nzv]
-test_set <- bind_cols(rating=test_set$rating, df_test)
-rm(df_test)
-
-
 # check for stratification of train / test split
 p1 <- train_set %>%
   group_by(rating) %>%
