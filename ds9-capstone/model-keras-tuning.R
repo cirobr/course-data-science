@@ -10,16 +10,19 @@ print("setup environment")
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+
+# keras environment
+library(reticulate)
 library(keras)
-library(tfruns)
+# Sys.setenv("RETICULATE_PYTHON" = "~/anaconda3/envs/r-env/bin/python")
+use_condaenv("r-env")
 
 options(digits = 3)
 
 # tuning environment
 FLAGS <- flags(
   flag_string("activationType", "relu"),
-  flag_string("optimizerType", "adam"),
-  flag_numeric("epochSize", 5)
+  flag_string("optimizerType", "adam")
 )
 
 # define error function
@@ -72,13 +75,15 @@ model %>% compile(
 )
 
 # train the model
-model %>% fit(x = X_train, 
-              y = y_train, 
-              epochs = FLAGS$epochSize, 
-              validation_split = 0.3,
-              verbose = 2)
+history <- model %>% fit(x = X_train, 
+                         y = y_train, 
+                         epochs = 10, 
+                         validation_split = 0.2,
+                         verbose = 2)
 
 # evaluate accuracy
+plot(history)
+
 score <- model %>% evaluate(X_test, y_test, verbose = 0)
 score
 
