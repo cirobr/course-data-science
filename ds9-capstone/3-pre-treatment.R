@@ -18,7 +18,6 @@ library(caret)
 library(foreach)
 
 options(digits = 3)
-proportion_test_set = 0.20
 
 # cleanup memory
 if(exists("validation")) {rm(validation)}
@@ -53,6 +52,8 @@ rm(df_test)
 # save split datasets
 train_set %>% write_csv(file = "./dat/train.csv")
 test_set  %>% write_csv(file = "./dat/test.csv")
+head(train_set)
+head(test_set)
 
 # cleanup memory
 rm(genres_names, proportion_test_set, vector, fn)
