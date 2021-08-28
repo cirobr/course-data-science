@@ -30,6 +30,10 @@ if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as
 # prepare datasets
 print("pre-treatment")
 
+# no NAs on trainset / testset
+# any(is.na(df_train))
+# any(is.na(df_test))
+
 # remove movies and users from testset that are not present on trainset
 test_set <- test_set %>%
   semi_join(train_set, by = "movieId") %>%
