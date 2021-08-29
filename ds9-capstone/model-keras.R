@@ -2,8 +2,8 @@
 print("job start")
 
 # suppress warnings
-# oldw <- getOption("warn")
-# options(warn = -1)
+oldw <- getOption("warn")
+options(warn = -1)
 
 # environment
 print("setup environment")
@@ -14,8 +14,6 @@ library(tidyverse)
 # keras environment
 library(reticulate)
 library(keras)
-# Sys.setenv("RETICULATE_PYTHON" = "~/anaconda3/envs/r-env/bin/python")
-use_condaenv("r-env")
 
 options(digits = 3)
 
@@ -71,7 +69,7 @@ model %>% compile(
 # train the model
 history <- model %>% fit(x = X_train, 
                          y = y_train, 
-                         epochs = 30, 
+                         epochs = 10,   # 10 idealmente para este dataset
                          validation_split = 0.2,
                          verbose = 2)
 
