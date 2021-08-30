@@ -13,16 +13,21 @@ library(ggplot2)
 library(dplyr)
 library(tidyverse)
 library(caret)
+
 library(randomForest)
-library(nnet)
 library(doParallel)
 
 options(digits = 3)
 subset_size = 5000
 
 # paralell processing
-number_of_processor_cores = 3
-cl <- makePSOCKcluster(number_of_processor_cores)
+# number_of_processor_cores = 6
+# cl <- makePSOCKcluster(number_of_processor_cores)
+
+# define error function
+errRMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
 
 # read csv datasets
 print("read csv datasets")
@@ -34,21 +39,14 @@ print("prepare datasets")
 df_train <- train_set
 df_test  <- test_set
 
-# transform predictors to integers and factor the outcome
-ratingFactor <- as.factor(df_train$rating)
-levelsRating <- levels(ratingFactor)
-numberOfColumns <- ncol(df_train)
+# scale predictors and factor the outcome
+outcomeFactors <- c("0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5")
 
-df_train <- df_train %>% 
-  select(-c(rating)) %>% 
-  mutate(across(1 : numberOfColumns-1, as.integer))
-df_train <- bind_cols(rating=ratingFactor, df_train)
+df_train$rating <- factor(df_train$rating, levels = outcomeFactors)
+df_train[-1] = scale(df_train[-1])
 
-ratingFactor <- as.factor(df_test$rating)
-df_test <- df_test %>% 
-  select(-c(rating)) %>% 
-  mutate(across(1 : numberOfColumns-1, as.integer))
-df_test <- bind_cols(rating=ratingFactor, df_test)
+df_test$rating <- factor(df_test$rating, levels = outcomeFactors)
+df_test[-1] = scale(df_test[-1])
 
 # creates small subset for experiments
 df <- head(df_train, n=subset_size)
@@ -57,42 +55,40 @@ df <- head(df_train, n=subset_size)
 print("fit randomForest model")
 modelLookup("rf")
 
-# comment on code for cration of the pre-built model
-# control <- trainControl(method = "cv",
-#                         number = 10,
-#                         p = .9,
-#                         verboseIter = TRUE)
-# 
-# maxMtry = floor((ncol(df_train) - 1) / 2)
-# gridSearch <- data.frame(mtry = seq(4, 6, by = 1))   # top parece ser 5
-# 
+control <- trainControl(method = "cv",
+                        number = 10,
+                        p = .9,
+                        verboseIter = TRUE)
+
+maxMtry <- ceiling((ncol(df_train) - 1) / 2)
+gridSearch <- expand.grid(mtry  = seq(3, maxMtry, by = 1))
+
 # print("multi-core ON")
 # registerDoParallel(cl)
-# 
-# set.seed(1, sample.kind = "Rounding")
-# rf_bestfit <- df_train %>%
-#   train(rating ~ .,
-#         method = "rf",
-#         ntree = 25,
-#         proximity = FALSE,
-#         # preProcess = c('center', 'scale'),
-#         data = .,
-#         tuneGrid = gridSearch,
-#         trControl = control
-#         )
-# 
+
+set.seed(1, sample.kind = "Rounding")
+rf_fit <- df_train %>%
+  train(rating ~ .,
+        method = "rf",
+        data = .,
+        ntree = 100,
+        proximity = FALSE,
+        tuneGrid = gridSearch,
+        trControl = control
+        )
+
 # stopCluster(cl)   # multi-core off
 
 # load pre-built model to save execution time
-load(file="./mdl/rf_bestfit.RData")
+# load(file="./mdl/rf_fit.RData")
 
-ggplot(rf_bestfit, highlight = TRUE)
-rf_bestfit$bestTune
-rf_bestfit$finalModel
+ggplot(rf_fit, highlight = TRUE)
+rf_fit$bestTune
+rf_fit$finalModel
 
 # predict the outcome
 print("predict the outcome")
-predicted <- predict(rf_bestfit, df_test)
+predicted <- predict(rf_fit, df_test)
 predictedNonFactor <- varhandle::unfactor(predicted)
 
 # calculate error metrics
@@ -102,11 +98,11 @@ err
 hist(predictedNonFactor)
 
 # save model
-# print("save model")
-# save(rf_bestfit, file="./mdl/rf_bestfit.RData")
+print("save model")
+save(rf_fit, file="./mdl/rf_fit.RData")
 
 # clean memory
-rm(rf_bestfit, df, df_train, df_test, ratingFactor)
+rm(rf_fit, df, df_train, df_test)
 
 # restore warnings
 options(warn = oldw)
