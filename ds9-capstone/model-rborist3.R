@@ -34,6 +34,12 @@ print("prepare datasets")
 df_train <- train_set
 df_test  <- test_set
 
+# calculate weights to amplify class frequency
+classWeights <- df_train$rating %>% as_tibble() %>% 
+  group_by(class = value) %>% summarize(qty = n())
+
+classWeights <- max(classWeights$qty) / classWeights$qty
+
 # scale predictors and factor the outcome
 outcomeFactors <- c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
 
@@ -57,25 +63,25 @@ control <- trainControl(method = "cv",
 
 numberOfPredictors <- ncol(df_train) - 1
 maxGrid <- floor(numberOfPredictors / 2)
-gridSearch <- expand.grid(predFixed = seq(2, maxGrid, by = 3),
-                          minNode   = seq(500, 1000, 250)
+gridSearch <- expand.grid(predFixed = 8,    #seq(2, maxGrid, by = 3),
+                          minNode   = 750   #seq(500, 750, 1000)
 )
 
 set.seed(1, sample.kind = "Rounding")
-# rf_rborist <- df_train %>%
-#   train(rating ~ .,
-#         method = "Rborist",
-#         data = .,
-#         nTree=100,
-#         # classWeight = c(2.0, rep(1.0, 9)),
-#         tuneGrid = gridSearch,
-#         trControl = control
-#         )
+rf_rborist <- df_train %>%
+  train(rating ~ .,
+        method = "Rborist",
+        data = .,
+        nTree=100,
+        classWeight = classWeights,
+        tuneGrid = gridSearch,
+        trControl = control
+        )
 
 # load pre-built model to save execution time
-load(file="./mdl/rf_rborist.RData")
+# load(file="./mdl/rf_rborist3.RData")
 
-ggplot(rf_rborist, highlight = TRUE)
+# ggplot(rf_rborist, highlight = TRUE)
 rf_rborist$bestTune
 rf_rborist$finalModel
 
@@ -91,8 +97,8 @@ err
 hist(predictedNonFactor)
 
 # save model
-print("save model")
-# save(rf_rborist, file="./mdl/rf_rborist.RData")
+# print("save model")
+save(rf_rborist, file="./mdl/rf_rborist3.RData")
 
 # clean memory
 rm(rf_rborist, df, df_train, df_test)

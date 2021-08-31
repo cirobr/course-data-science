@@ -28,12 +28,14 @@ if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv")}
 edx <- as.tibble(edx)
 head(edx)
 
-# extract "year of release" and "year of timestamp" as predictor columns
-edx2 <- edx %>% mutate(year_release = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
-                       year_stamp = year(as_datetime(timestamp))) %>%
+# extract yearOfRelease, yearTimestamp, timeToRate as predictors
+edx2 <- edx %>% 
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
+         yearTimestamp = year(as_datetime(timestamp)),
+         timeToRate    = yearTimestamp - yearOfRelease, .after = yearTimestamp) %>%
   select(-c(timestamp, title))
 
-# extract movie genres as predictor columns
+# extract movie genres as predictors
 genres_names <- strsplit(edx2$genres, "|", fixed = TRUE) %>%
   unlist() %>%
   unique()
@@ -42,6 +44,7 @@ fn <- function(element_vector){
   as.numeric(grepl(element_vector, vector))
 }
 
+# remove hiphen from predictor names
 vector <- edx2$genres
 df <- sapply(genres_names, fn) %>% as.tibble()
 colnames(df)[7]  <- "SciFi"

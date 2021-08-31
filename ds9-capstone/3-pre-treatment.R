@@ -39,7 +39,7 @@ test_set <- test_set %>%
   semi_join(train_set, by = "movieId") %>%
   semi_join(train_set, by = "userId")
 
-# remove columns with small variance
+# remove predictors with small variance
 df_train <- train_set %>% select(-rating)
 nzv <- nearZeroVar(df_train, foreach = TRUE, allowParallel = TRUE)
 colnames(df_train[,nzv])
@@ -53,7 +53,7 @@ df_test <- df_test[,-nzv]
 test_set <- bind_cols(rating=test_set$rating, df_test)
 rm(df_test)
 
-# save split datasets
+# save datasets
 train_set %>% write_csv(file = "./dat/train.csv")
 test_set  %>% write_csv(file = "./dat/test.csv")
 head(train_set)
