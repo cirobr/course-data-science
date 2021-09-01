@@ -1,23 +1,25 @@
 # R version: 4.1.0
 print("job start")
 
-# suppress warnings
-oldw <- getOption("warn")
-options(warn = -1)
-
 # clean memory
 print("clean memory")
 
 # environment
 print("setup environment")
+
+# one-function libraries
 # library(plyr)                 # used as plyr::round_any()
 # library(varhandle)            # used as varhandle::unfactor()
+
+# libraries
 library(ggplot2)
-library(dplyr)
+library(lubridate)
 library(tidyverse)
 library(caret)
 
+# global variables
 options(digits = 3)
+subsetSize = 5000
 
 # read csv datasets
 print("read csv datasets")
@@ -29,51 +31,32 @@ errRMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
-# fit the model
-print("fit naive average model")
-mu <- mean(train_set$rating)
+# prepare datasets
+df_train <- train_set %>% mutate(unbiasedRating = rating, .before = rating)
+df_test  <- test_set  %>% mutate(unbiasedRating = rating, .before = rating)
+# rm(train_set, test_set)
 
-print("predict outcome")
-predicted <- plyr::round_any(rep(mu, nrow(test_set)), 0.5)
+# unbias global average
+muGlobalAvg <- mean(df_train$rating)
 
-print("calculate error")
-err <- errRMSE(test_set$rating, predicted)
+df_train <- df_train %>%
+  mutate(unbiasedRating = unbiasedRating - muGlobalAvg)
 
-rmse_results <- data.frame(model = "naiveAvg",
-                           error = err)
+df_test <- df_test %>%
+  mutate(unbiasedRating = unbiasedRating - muGlobalAvg)
 
+muUnbiased <- mean(df_train$unbiasedRating)
+predicted <- rep(muUnbiased, nrow(test_set))
 
-# fit the model
-print("fit linear regression model")
-modelLookup("lm")
+err <- errRMSE(df_test$unbiasedRating, predicted)
+err
 
-# comment on code for cration of the pre-built model
-# lm_fit <- lm(rating ~ userId + movieId,
-#              data = train_set)
+# unbias ratings per movie
+df <- df_train %>%
+  group_by(movieId) %>%
+  summarize(avgRatingPerMovie = mean(rating))
+df_train <- left_join(df_train, df)
+df_test  <- left_join(df_test, df)
 
-# load pre-built model to save execution time
-load(file="./mdl/lm_fit.RData")
-
-print("predict outcome")
-predicted <- plyr::round_any(predict(lm_fit, test_set), 0.5) %>% as.numeric()
-
-print("calculate error")
-err <- errRMSE(test_set$rating, predicted)
-
-rmse_results <- bind_rows(rmse_results, data.frame(model = "linearReg",
-                                                   error = err))
-
-# cleanup memory
-rm(lm_fit, predicted)
-
-
-
-
-
-# show RMSE results
-rmse_results
-
-# restore warnings
-options(warn = oldw)
-
-print("job done")
+df_train$unbiasedRating <- df_train$unbiasedRating - df_train$avgRatingPerMovie
+df_test$unbiasedRating  <- df_test$unbiasedRating  - df_test$avgRatingPerMovie

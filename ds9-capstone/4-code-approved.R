@@ -10,13 +10,18 @@ print("clean memory")
 
 # environment
 print("setup environment")
+
+# one-function libraries
 # library(plyr)                 # used as plyr::round_any()
 # library(varhandle)            # used as varhandle::unfactor()
+
+# libraries
 library(ggplot2)
-library(dplyr)
+library(lubridate)
 library(tidyverse)
 library(caret)
 
+# global variables
 options(digits = 3)
 
 # read csv datasets
@@ -47,7 +52,6 @@ rmse_results <- data.frame(model = "naiveAvg",
 print("fit linear regression model")
 modelLookup("lm")
 
-# comment on code for cration of the pre-built model
 # lm_fit <- lm(rating ~ userId + movieId,
 #              data = train_set)
 

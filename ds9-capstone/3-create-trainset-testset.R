@@ -11,10 +11,13 @@ rm(validation)
 # environment
 print("setup environment")
 
+# libraries
 library(ggplot2)
+library(lubridate)
 library(tidyverse)
 library(caret)
 
+# global variables
 options(digits = 3)
 proportionTestSet = 0.20
 

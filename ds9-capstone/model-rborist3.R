@@ -1,56 +1,15 @@
-# R version: 4.1.0
-print("job start")
-
-# suppress warnings
-oldw <- getOption("warn")
-options(warn = -1)
-
 # environment
 print("setup environment")
-# library(plyr)                 # used as plyr::round_any()
-# library(varhandle)            # used as varhandle::unfactor()
-library(ggplot2)
-library(dplyr)
-library(tidyverse)
-library(caret)
-
 library(Rborist)                # parallel computing
 
-options(digits = 3)
-subset_size = 5000
-
-# define error function
-errRMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
-
-# read csv datasets
-print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as_tibble()}
-
-# prepare datasets
-print("prepare datasets")
-df_train <- train_set
-df_test  <- test_set
-
-# calculate weights to amplify class frequency
-classWeights <- df_train$rating %>% as_tibble() %>% 
-  group_by(class = value) %>% summarize(qty = n())
-
-classWeights <- max(classWeights$qty) / classWeights$qty
+# prepare dataset
+head(df_train)
+df_train <- df_train %>%
+  select(-c(rating, timestamp, timestampYear, yearOfRelease))
 
 # scale predictors and factor the outcome
-outcomeFactors <- c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
-
-df_train$rating <- factor(df_train$rating, levels = outcomeFactors)
 df_train[-1]    <- scale(df_train[-1])
-
-df_test$rating  <- factor(df_test$rating, levels = outcomeFactors)
 df_test[-1]     <- scale(df_test[-1])
-
-# creates small subset for experiments
-df <- head(df_train, n=subset_size)
 
 # fit the model
 print("fit Rborist model")
@@ -63,45 +22,42 @@ control <- trainControl(method = "cv",
 
 numberOfPredictors <- ncol(df_train) - 1
 maxGrid <- floor(numberOfPredictors / 2)
-gridSearch <- expand.grid(predFixed = 8,    #seq(2, maxGrid, by = 3),
-                          minNode   = 750   #seq(500, 750, 1000)
+gridSearch <- expand.grid(predFixed = seq(2, maxGrid, by = 3),
+                          minNode   = seq(500, 750, 1000)
 )
 
 set.seed(1, sample.kind = "Rounding")
-rf_rborist <- df_train %>%
-  train(rating ~ .,
+rborist_fit <- df_train %>%
+  train(unbiasedRating ~ .,
         method = "Rborist",
         data = .,
         nTree=100,
-        classWeight = classWeights,
+        #classWeight = classWeights,
         tuneGrid = gridSearch,
         trControl = control
         )
 
 # load pre-built model to save execution time
-# load(file="./mdl/rf_rborist3.RData")
+# load(file="./mdl/rborist_fit.RData")
 
-# ggplot(rf_rborist, highlight = TRUE)
-rf_rborist$bestTune
-rf_rborist$finalModel
+ggplot(rborist_fit, highlight = TRUE)
+rborist_fit$bestTune
+rborist_fit$finalModel
 
 # predict the outcome
 print("predict the outcome")
 predicted <- predict(rf_rborist, df_test)
-predictedNonFactor <- varhandle::unfactor(predicted)
+# predictedNonFactor <- varhandle::unfactor(predicted)
 
 # calculate error metrics
 print("calculate error metrics")
-err <- errRMSE(test_set$rating, predictedNonFactor)
+err <- errRMSE(test_set$rating, predicted)
 err
-hist(predictedNonFactor)
+hist(predicted)
 
 # save model
 # print("save model")
-save(rf_rborist, file="./mdl/rf_rborist3.RData")
+# save(rborist_fit, file="./mdl/rborist_fit.RData")
 
 # clean memory
-rm(rf_rborist, df, df_train, df_test)
-
-# restore warnings
-options(warn = oldw)
+# rm(rborist_fit, df, df_train, df_test)

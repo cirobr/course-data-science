@@ -7,11 +7,16 @@ options(warn = -1)
 # environment
 print("setup environment")
 
+# one-function libraries
+# library(stringi)     # used as stringi::stri_sub()
+
+# libraries
 library(ggplot2)
 library(lubridate)
 library(tidyverse)
 library(caret)
 
+# global variables
 options(digits = 3)
 
 # clean memory
@@ -22,8 +27,12 @@ if(exists("validation")) {rm(validation)}
 if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv") %>% as_tibble()}
 head(edx)
 
+# move ratings to first column
+edx2 <- edx %>% select(-c(rating))
+edx2 <- cbind(rating = edx$rating, edx2)
+
 # extract dates
-edx2 <- edx %>% 
+edx2 <- edx2 %>% 
   select(-c(genres)) %>%
   mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2))) %>%
   mutate(timestampYear = year(as_datetime(timestamp)), .after = timestamp) %>%
