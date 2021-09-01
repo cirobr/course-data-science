@@ -1,41 +1,36 @@
-# # sorted genres of movies
-# sortedGenres <- df_train %>% 
-#   select(-c(rating, userId, movieId, year_stamp)) %>% 
-#   as.matrix %>% 
-#   colSums() %>% 
-#   sort(decreasing = TRUE)
-# 
-# estimation of biases
-dfUser <- df_train %>%
-  group_by(userId) %>%
-  summarize(meanUserRating = mean(rating))
+# extract dates and add timeToRate
+edx2 <- edx %>% 
+  select(-c(genres)) %>%
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
+         yearTimestamp = year(as_datetime(timestamp)),
+         yearsToRate    = yearTimestamp - yearOfRelease) %>%
+  select(-c(title))
 
-dfMovie <- df_train %>%
+# ratings per movie
+df <- edx2 %>%
   group_by(movieId) %>%
-  summarize(meanMovieRating = mean(rating))
+  summarize(nrRatingsPerMovie = n(),
+            avgRatingPerMovie = mean(rating))
+edx2 <- left_join(edx2, df)
 
-dfDramaUser <- df_train %>%
-  select(c(rating, userId, movieId, Drama)) %>%
-  filter(Drama == 1) %>%
+# ratings per user
+df <- edx2 %>%
   group_by(userId) %>%
-  summarize(meanDramaUserRating = mean(rating))
+  summarize(nrRatingsPerUser = n(),
+            avgRatingPerUser = mean(rating))
+edx2 <- left_join(edx2, df)
 
-dfDramaMovie <- df_train %>%
-  select(c(rating, userId, movieId, Drama)) %>%
-  filter(Drama == 1) %>%
-  group_by(movieId) %>%
-  summarize(meanDramaMovieRating = mean(rating))
+# ratings per year of release
+df <- edx2 %>%
+  group_by(yearOfRelease) %>%
+  summarize(nrRatingsPerYearOfRelease = n(),
+            avgRatingPerYearOfRelease = mean(rating))
+edx2 <- left_join(edx2, df)
 
+# days from first rating (in progress)
+# df <- edx2 %>%
+#   group_by(movieId) %>%
+#   summarize(timeOfFirstRating = min(timestamp),
+#             daysFromFirstRating = day(as_datetime(timestamp) - astimeOfFirstRating))
 
-
-
-df_train <- left_join(df_train, dfUser)
-df_train <- left_join(df_train, dfMovie)
-# 
-# df_train <- left_join(df_train, dfDramaUser)
-# df_train <- left_join(df_train, dfDramaMovie)
-# 
-# df_train[is.na(df_train)] <- -1
-
-# stop()
 

@@ -1,14 +1,14 @@
 # R version: 4.1.0
 
 # suppress warnings
-# oldw <- getOption("warn")
-# options(warn = -1)
+oldw <- getOption("warn")
+options(warn = -1)
 
 # environment
 print("setup environment")
 
 library(ggplot2)
-# library(lubridate)   # part of tidyverse
+library(lubridate)
 library(tidyverse)
 library(caret)
 
@@ -22,46 +22,12 @@ if(exists("validation")) {rm(validation)}
 if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv") %>% as_tibble()}
 head(edx)
 
-# extract dates and add timeToRate
+# extract dates
 edx2 <- edx %>% 
   select(-c(genres)) %>%
-  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
-         yearTimestamp = year(as_datetime(timestamp)),
-         yearsToRate    = yearTimestamp - yearOfRelease) %>%
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2))) %>%
+  mutate(timestampYear = year(as_datetime(timestamp)), .after = timestamp) %>%
   select(-c(title))
-
-# ratings per movie
-df <- edx2 %>%
-  group_by(movieId) %>%
-  summarize(nrRatingsPerMovie = n(),
-            avgRatingPerMovie = mean(rating))
-edx2 <- left_join(edx2, df)
-
-# ratings per user
-df <- edx2 %>%
-  group_by(userId) %>%
-  summarize(nrRatingsPerUser = n(),
-            avgRatingPerUser = mean(rating))
-edx2 <- left_join(edx2, df)
-
-# ratings per year of release
-df <- edx2 %>%
-  group_by(yearOfRelease) %>%
-  summarize(nrRatingsPerYearOfRelease = n(),
-            avgRatingPerYearOfRelease = mean(rating))
-edx2 <- left_join(edx2, df)
-
-# days from first rating (in progress)
-# df <- edx2 %>%
-#   group_by(movieId) %>%
-#   summarize(timeOfFirstRating = min(timestamp),
-#             daysFromFirstRating = day(as_datetime(timestamp) - astimeOfFirstRating))
-
-
-
-
-
-# stop()
 
 # extract movie genres as predictors
 genres_names <- strsplit(edx$genres, "|", fixed = TRUE) %>%
@@ -84,3 +50,11 @@ edx2 <- bind_cols(edx2, df)
 # rm(edx, df)
 head(edx2)
 
+# save datasets
+edx2 %>% write_csv(file = "./dat/edx2.csv")
+
+# cleanup memory
+rm(df, edx, genres_names, vector, fn)
+
+# restore warnings
+options(warn = oldw)

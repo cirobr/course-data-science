@@ -16,17 +16,13 @@ library(ggplot2)
 library(dplyr)
 library(tidyverse)
 library(caret)
-library(randomForest)
-library(nnet)
-library(doParallel)
 
 options(digits = 3)
-subset_size = 5000
 
 # read csv datasets
 print("read csv datasets")
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv") %>% as.tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as.tibble()}
 
 # define error function
 errRMSE <- function(true_ratings, predicted_ratings){
@@ -67,8 +63,8 @@ err <- errRMSE(test_set$rating, predicted)
 rmse_results <- bind_rows(rmse_results, data.frame(model = "linearReg",
                                                    error = err))
 
-# clean memory
-rm(lm_fit)
+# cleanup memory
+rm(lm_fit, predicted)
 
 
 
