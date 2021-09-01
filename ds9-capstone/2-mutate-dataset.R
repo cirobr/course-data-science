@@ -8,10 +8,9 @@
 print("setup environment")
 
 library(ggplot2)
-library(lubridate)
+# library(lubridate)   # part of tidyverse
 library(tidyverse)
 library(caret)
-library(foreach)
 
 options(digits = 3)
 
@@ -28,26 +27,44 @@ edx2 <- edx %>%
   select(-c(genres)) %>%
   mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
          yearTimestamp = year(as_datetime(timestamp)),
-         timeToRate    = yearTimestamp - yearOfRelease) %>%
+         yearsToRate    = yearTimestamp - yearOfRelease) %>%
   select(-c(title))
 
 # ratings per movie
 df <- edx2 %>%
   group_by(movieId) %>%
-  summarize(ratingsPerMovie = n())
-edx2 <- bind_cols(edx2, df)
+  summarize(nrRatingsPerMovie = n(),
+            avgRatingPerMovie = mean(rating))
+edx2 <- left_join(edx2, df)
 
-stop()
+# ratings per user
+df <- edx2 %>%
+  group_by(userId) %>%
+  summarize(nrRatingsPerUser = n(),
+            avgRatingPerUser = mean(rating))
+edx2 <- left_join(edx2, df)
 
-# extract yearOfRelease, yearTimestamp, timeToRate as predictors
-edx2 <- edx %>% 
-  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
-         yearTimestamp = year(as_datetime(timestamp)),
-         timeToRate    = yearTimestamp - yearOfRelease, .after = yearTimestamp) %>%
-  select(-c(timestamp, title))
+# ratings per year of release
+df <- edx2 %>%
+  group_by(yearOfRelease) %>%
+  summarize(nrRatingsPerYearOfRelease = n(),
+            avgRatingPerYearOfRelease = mean(rating))
+edx2 <- left_join(edx2, df)
+
+# days from first rating (in progress)
+# df <- edx2 %>%
+#   group_by(movieId) %>%
+#   summarize(timeOfFirstRating = min(timestamp),
+#             daysFromFirstRating = day(as_datetime(timestamp) - astimeOfFirstRating))
+
+
+
+
+
+# stop()
 
 # extract movie genres as predictors
-genres_names <- strsplit(edx2$genres, "|", fixed = TRUE) %>%
+genres_names <- strsplit(edx$genres, "|", fixed = TRUE) %>%
   unlist() %>%
   unique()
 
@@ -55,14 +72,15 @@ fn <- function(element_vector){
   as.numeric(grepl(element_vector, vector))
 }
 
+vector <- edx$genres
+df <- sapply(genres_names, fn) %>% as_tibble()
+
 # remove hiphen from predictor names
-vector <- edx2$genres
-df <- sapply(genres_names, fn) %>% as.tibble()
 colnames(df)[7]  <- "SciFi"
 colnames(df)[16] <- "FilmNoir"
 colnames(df)[20] <- "NoGenre"
 
-edx2 <- edx2 %>% select(-genres) %>% bind_cols(df)
-rm(edx, df)
+edx2 <- bind_cols(edx2, df)
+# rm(edx, df)
 head(edx2)
 
