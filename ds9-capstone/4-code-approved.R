@@ -67,8 +67,6 @@ err <- errRMSE(test_set$rating, predicted)
 rmse_results <- bind_rows(rmse_results, data.frame(model = "linearReg",
                                                    error = err))
 
-# cleanup memory
-rm(lm_fit, predicted)
 
 
 
@@ -76,6 +74,9 @@ rm(lm_fit, predicted)
 
 # show RMSE results
 rmse_results
+
+# cleanup memory
+rm(lm_fit, predicted)
 
 # restore warnings
 options(warn = oldw)

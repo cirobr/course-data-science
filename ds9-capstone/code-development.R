@@ -1,9 +1,6 @@
 # R version: 4.1.0
 print("job start")
 
-# clean memory
-print("clean memory")
-
 # environment
 print("setup environment")
 
@@ -26,37 +23,37 @@ print("read csv datasets")
 if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
 if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as.tibble()}
 
-# define error function
-errRMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
+### unbias global average
+muTrain <- mean(train_set$rating)
+muTest  <- mean(test_set$rating)
 
-# prepare datasets
-df_train <- train_set %>% mutate(unbiasedRating = rating, .before = rating)
-df_test  <- test_set  %>% mutate(unbiasedRating = rating, .before = rating)
-# rm(train_set, test_set)
+unbiasedRatingTrain <- train_set$rating - muTrain
+unbiasedRatingTest  <- train_set$rating - muTest
 
-# unbias global average
-muGlobalAvg <- mean(df_train$rating)
+# predict
+predicted <- mean(unbiasedRatingTrain)
+predicted <- rep(predicted, nrow(test_set))
 
-df_train <- df_train %>%
-  mutate(unbiasedRating = unbiasedRating - muGlobalAvg)
-
-df_test <- df_test %>%
-  mutate(unbiasedRating = unbiasedRating - muGlobalAvg)
-
-muUnbiased <- mean(df_train$unbiasedRating)
-predicted <- rep(muUnbiased, nrow(test_set))
-
-err <- errRMSE(df_test$unbiasedRating, predicted)
+err <- errRMSE(unbiasedRatingTest, predicted)
 err
 
-# unbias ratings per movie
-df <- df_train %>%
+### unbias ratings per movie
+ratingsTrain <- train_set %>%
   group_by(movieId) %>%
   summarize(avgRatingPerMovie = mean(rating))
-df_train <- left_join(df_train, df)
-df_test  <- left_join(df_test, df)
+ratingsTest <- test_set %>%
+  group_by(movieId) %>%
+  summarize(avgRatingPerMovie = mean(rating))
 
-df_train$unbiasedRating <- df_train$unbiasedRating - df_train$avgRatingPerMovie
-df_test$unbiasedRating  <- df_test$unbiasedRating  - df_test$avgRatingPerMovie
+df_train <- left_join(train_set, ratingsTrain)
+df_test  <- left_join(test_set,  ratingsTest)
+
+unbiasedRatingTrain <- df_train$rating - df_train$avgRatingPerMovie
+unbiasedRatingTest  <- df_test$rating  - df_test$avgRatingPerMovie
+
+# predict
+predicted <- left_join(test_set, ratingsTrain)
+predicted <- predicted$rating  - predicted$avgRatingPerMovie
+
+err <- errRMSE(unbiasedRatingTest, predicted)
+err
