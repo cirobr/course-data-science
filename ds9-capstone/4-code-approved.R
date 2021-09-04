@@ -34,49 +34,66 @@ errRMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
-# fit the model
-print("fit naive average model")
+# below code crashes R
+# lm_fit <- lm(rating ~ as.factor(userId) + as.factor(movieId),
+#              data = train_set)
+
+# predict by global average
 mu <- mean(train_set$rating)
-
-print("predict outcome")
-predicted <- plyr::round_any(rep(mu, nrow(test_set)), 0.5)
-
-print("calculate error")
-err <- errRMSE(test_set$rating, predicted)
-
+predicted <- mu
+err <- RMSE(test_set$rating, predicted)
 rmse_results <- data.frame(model = "naiveAvg",
                            error = err)
 
+# add movie bias effect
+df <- train_set %>%
+  group_by(movieId) %>%
+  summarize(epsilon = mean(rating - mu))
 
-# fit the model
-print("fit linear regression model")
-modelLookup("lm")
+qplot(epsilon, data = df, bins = 10, color = I("black"))
 
-# lm_fit <- lm(rating ~ userId + movieId,
-#              data = train_set)
+dfBiasMovie <- left_join(train_set, df) %>%
+  select(rating, movieId, epsilon) %>%
+  group_by(movieId) %>%
+  summarize(biasMovie = mean(epsilon))
 
-# load pre-built model to save execution time
-load(file="./mdl/lm_fit.RData")
+df <- left_join(test_set, dfBiasMovie) %>%
+  select(rating, movieId, biasMovie)
+predicted = mu + df$biasMovie
 
-print("predict outcome")
-predicted <- plyr::round_any(predict(lm_fit, test_set), 0.5) %>% as.numeric()
+err <- RMSE(test_set$rating, predicted)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(model ="movieBias",
+                                     error = err))
 
-print("calculate error")
-err <- errRMSE(test_set$rating, predicted)
+# add user bias effect
+df <- train_set %>%
+  left_join(dfBiasMovie) %>%
+  group_by(userId) %>%
+  summarize(epsilon = mean(rating - mu - biasMovie))
 
-rmse_results <- bind_rows(rmse_results, data.frame(model = "linearReg",
-                                                   error = err))
+qplot(epsilon, data = df, bins = 10, color = I("black"))
 
+dfBiasUser <- left_join(train_set, df) %>%
+  select(rating, userId, movieId, epsilon) %>%
+  group_by(userId) %>%
+  summarize(biasUser = mean(epsilon))
 
+df <- left_join(test_set, dfBiasMovie) %>%
+  left_join(dfBiasUser) %>%
+  select(rating, movieId, userId, biasMovie, biasUser)
+predicted = mu + df$biasMovie + df$biasUser
 
-
-
+err <- RMSE(test_set$rating, predicted)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(model ="userBias",
+                                     error = err))
 
 # show RMSE results
 rmse_results
 
 # cleanup memory
-rm(lm_fit, predicted)
+rm(df, predicted)
 
 # restore warnings
 options(warn = oldw)
