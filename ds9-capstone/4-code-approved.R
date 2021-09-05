@@ -5,9 +5,6 @@ print("job start")
 oldw <- getOption("warn")
 options(warn = -1)
 
-# clean memory
-print("clean memory")
-
 # environment
 print("setup environment")
 
@@ -26,8 +23,8 @@ options(digits = 3)
 
 # read csv datasets
 print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as.tibble()}
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as_tibble()}
 
 # define error function
 errRMSE <- function(true_ratings, predicted_ratings){

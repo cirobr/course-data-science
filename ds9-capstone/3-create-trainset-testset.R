@@ -22,7 +22,7 @@ options(digits = 3)
 proportionTestSet = 0.20
 
 # read dataset from csv
-if(!exists("edx2")) {edx2 <- read_csv(file = "./dat/edx2.csv") %>% as.tibble()}
+if(!exists("edx2")) {edx2 <- read_csv(file = "./dat/edx2.csv") %>% as_tibble()}
 head(edx2)
 
 # split train and test sets
