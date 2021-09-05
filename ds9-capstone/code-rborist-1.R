@@ -18,8 +18,8 @@ subsetSize = 5000
 
 # read csv datasets
 print("read csv datasets")
-if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as.tibble()}
-if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as.tibble()}
+if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as_tibble()}
+if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as_tibble()}
 
 # prepare datasets
 df_train <- train_set %>%
@@ -64,22 +64,22 @@ gridSearch <- expand.grid(predFixed = seq(2, maxPredictors, by = 2),
                           minNode   = seq(500, 1000, 250)
 )
 
-set.seed(1, sample.kind = "Rounding")
-rborist_fit <- df_train %>%
-  train(deltaRating ~ .,
-        method = "Rborist",
-        data = .,
-        nTree=100,
-        tuneGrid = gridSearch,
-        trControl = control
-  )
-
-# save model
-# print("save model")
-save(rborist_fit, file="./mdl/rborist_fit-1.RData")
+# set.seed(1, sample.kind = "Rounding")
+# rborist_fit <- df_train %>%
+#   train(deltaRating ~ .,
+#         method = "Rborist",
+#         data = .,
+#         nTree=100,
+#         tuneGrid = gridSearch,
+#         trControl = control
+#   )
+# 
+# # save model
+# # print("save model")
+# save(rborist_fit, file="./mdl/rborist_fit-1.RData")
 
 # load pre-built model to save execution time
-# load(file="./mdl/rborist_fit.RData")
+load(file="./mdl/rborist_fit-1.RData")
 
 ggplot(rborist_fit, highlight = TRUE)
 rborist_fit$bestTune
