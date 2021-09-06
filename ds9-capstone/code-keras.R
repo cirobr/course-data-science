@@ -123,11 +123,11 @@ build_model <- function() {
 # plot(history)
 # 
 # # save model
-# print("save model")
-# save_model_tf(model, filepath = "./mdl/keras_fit")
+print("save model")
+save_model_tf("model", filepath = "./mdl")
 
 # load model
-load_model_tf(model, filepath = "./mdl/keras_fit")
+# model <- load_model_tf("keras_fit", filepath = "./mdl/")
 
 # test the model
 c(loss, mae) %<-% (model %>% 
@@ -150,3 +150,9 @@ print("calculate error metrics")
 err <- errRMSE(test_set$rating, df$predicted)
 err
 
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(model ="keras",
+                                     error = err))
+
+# show RMSE results
+rmse_results
