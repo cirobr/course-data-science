@@ -32,6 +32,7 @@ if(!exists("train_set")) {train_set <- read_csv(file = "./dat/train.csv") %>% as
 if(!exists("test_set"))  {test_set  <- read_csv(file = "./dat/test.csv")  %>% as_tibble()}
 
 # prepare trainset
+print("prepare trainset")
 df_train <- train_set %>%
   left_join(dfBiasMovie) %>%
   left_join(dfBiasUser) %>%
@@ -47,6 +48,7 @@ df_train <- train_set %>%
             biasUser))
 
 # remove predictors with small variance
+print("remove small variance predictors")
 nzv <- df_train %>% 
   select(-deltaRating) %>%
   nearZeroVar(foreach = TRUE, allowParallel = TRUE)
@@ -55,6 +57,7 @@ removedPredictors <- colnames(df_train[,nzv])
 df_train <- df_train %>% select(-all_of(removedPredictors))
 
 # prepare testset
+print("prepare testset")
 df_test <- test_set %>%
   left_join(dfBiasMovie) %>%
   left_join(dfBiasUser) %>%
@@ -74,6 +77,7 @@ df_test <- test_set %>%
 rm(train_set)
 
 # scale predictors
+print("scale predictors")
 spec <- feature_spec(df_train, deltaRating ~ . ) %>% 
   step_numeric_column(all_numeric(), normalizer_fn = scaler_standard()) %>% 
   fit()
@@ -105,6 +109,7 @@ build_model <- function() {
 }
 
 # train the model
+print("fit the model")
 early_stop <- callback_early_stopping(monitor = "val_loss",
                                       min_delta = 0.0001,
                                       patience = 5)
@@ -123,19 +128,22 @@ history <- model %>% fit(
 plot(history)
 
 # save model
-print("save model")
-save_model_tf("model", filepath = "./mdl")
+# print("save model")
+save_model_tf(model, filepath = "./mdl/keras-fit")
 
 # load model
-# model <- load_model_tf("keras_fit", filepath = "./mdl/")
+# load_model_tf(model, filepath = "./mdl/keras-fit")
 
-# test the model
+# evaluate the model
+print("evaluate model")
 c(loss, mae) %<-% (model %>% 
                      evaluate(df_test %>% select(-deltaRating), 
                               df_test$deltaRating, 
                               verbose = 0))
+c(loss, mae)
 
 # predict
+print("predict testset results")
 p <- model %>% predict(df_test %>% select(-deltaRating))
 p <- p[ , 1]
 
