@@ -105,24 +105,24 @@ build_model <- function() {
 }
 
 # train the model
-# early_stop <- callback_early_stopping(monitor = "val_loss", 
-#                                       min_delta = 0.0001,
-#                                       patience = 5)
-# 
-# model <- build_model()
-# 
-# history <- model %>% fit(
-#   x = df_train %>% select(-deltaRating),
-#   y = df_train$deltaRating,
-#   epochs = 50,
-#   validation_split = 0.2,
-#   verbose = 1,
-#   callbacks = list(early_stop)   # print_dot_callback
-#   )
-# 
-# plot(history)
-# 
-# # save model
+early_stop <- callback_early_stopping(monitor = "val_loss",
+                                      min_delta = 0.0001,
+                                      patience = 5)
+
+model <- build_model()
+
+history <- model %>% fit(
+  x = df_train %>% select(-deltaRating),
+  y = df_train$deltaRating,
+  epochs = 50,
+  validation_split = 0.2,
+  verbose = 1,
+  callbacks = list(early_stop)
+  )
+
+plot(history)
+
+# save model
 print("save model")
 save_model_tf("model", filepath = "./mdl")
 
