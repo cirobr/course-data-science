@@ -19,7 +19,7 @@ library(tidyverse)
 library(caret)
 
 # global variables
-options(digits = 3)
+options(digits = 5)
 
 # read csv datasets
 print("read csv datasets")
