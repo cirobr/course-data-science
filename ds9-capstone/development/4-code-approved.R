@@ -45,14 +45,14 @@ rmse_results <- data.frame(model = "naiveAvg",
 # add movie bias effect
 df <- train_set %>%
   group_by(movieId) %>%
-  summarize(epsilon = mean(rating - mu))
+  summarize(deltaRating = mean(rating - mu))
 
-qplot(epsilon, data = df, bins = 10, color = I("black"))
+qplot(deltaRating, data = df, bins = 10, color = I("black"))
 
 dfBiasMovie <- left_join(train_set, df) %>%
-  select(rating, movieId, epsilon) %>%
+  select(rating, movieId, deltaRating) %>%
   group_by(movieId) %>%
-  summarize(biasMovie = mean(epsilon))
+  summarize(biasMovie = mean(deltaRating))
 
 df <- left_join(test_set, dfBiasMovie) %>%
   select(rating, movieId, biasMovie)
@@ -67,14 +67,14 @@ rmse_results <- bind_rows(rmse_results,
 df <- train_set %>%
   left_join(dfBiasMovie) %>%
   group_by(userId) %>%
-  summarize(epsilon = mean(rating - mu - biasMovie))
+  summarize(deltaRating = mean(rating - mu - biasMovie))
 
-qplot(epsilon, data = df, bins = 10, color = I("black"))
+qplot(deltaRating, data = df, bins = 10, color = I("black"))
 
 dfBiasUser <- left_join(train_set, df) %>%
-  select(rating, userId, movieId, epsilon) %>%
+  select(rating, userId, movieId, deltaRating) %>%
   group_by(userId) %>%
-  summarize(biasUser = mean(epsilon))
+  summarize(biasUser = mean(deltaRating))
 
 df <- left_join(test_set, dfBiasMovie) %>%
   left_join(dfBiasUser) %>%
