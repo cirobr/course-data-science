@@ -1,8 +1,8 @@
 # R version: 4.1.0
 
 # suppress warnings
-# oldw <- getOption("warn")
-# options(warn = -1)
+oldw <- getOption("warn")
+options(warn = -1)
 
 # environment
 print("setup environment")
@@ -24,12 +24,21 @@ library(keras)
 library(tfdatasets)
 
 # global variables
-options(digits = 6)
-proportionTestSet = 0.20
+#options(digits = 6)
+proportionTestSet <- 0.20
+numberOfEpochs    <- 20                    # keras training parameter
 
-# define error function
+# error function
 errRMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+# function: difference of timestamps in days
+daysBetweenTimestamps <- function(x,y){
+  difftime(as_date(as_datetime(x)), 
+           as_date(as_datetime(y)), 
+           units = c("days")) %>% 
+    as.numeric()
 }
 
 # clean memory
@@ -52,27 +61,19 @@ edx2 <- edx2 %>%
          yearsFromRelease = timestampYear - yearOfRelease) %>%
   select(-c(title, yearOfRelease, timestampYear)) 
 
-# function definition
-daysBetweenTimestamps <- function(x,y){
-  difftime(as_date(as_datetime(x)), 
-           as_date(as_datetime(y)), 
-           units = c("days")) %>% 
-    as.numeric()
-}
-
 # extract firstUserRating
-df <- edx2 %>% group_by(userId) %>%
+dfFirstUserRating <- edx2 %>% group_by(userId) %>%
   select(userId, timestamp) %>%
   summarize(firstUserRating = min(timestamp))
 
-edx2 <- left_join(edx2, df)
+edx2 <- left_join(edx2, dfFirstUserRating)
 
 # extract firstMovieRating
-df <- edx2 %>% group_by(movieId) %>%
+dfFirstMovieRating <- edx2 %>% group_by(movieId) %>%
   select(movieId, timestamp) %>%
   summarize(firstMovieRating = min(timestamp))
 
-edx2 <- left_join(edx2, df)
+edx2 <- left_join(edx2, dfFirstMovieRating)
 
 # extract daysFromFirstUserRating and daysFromFirstMovieRating
 edx2 <- edx2 %>% mutate(daysFromFirstUserRating  = daysBetweenTimestamps(timestamp, firstUserRating),
@@ -99,11 +100,8 @@ colnames(df)[20] <- "NoGenre"
 edx2 <- bind_cols(edx2, df)
 head(edx2)
 
-# save datasets
-# edx2 %>% write_csv(file = "./dat/edx2.csv")
-
 # cleanup memory
-rm(df, edx, genres_names, vector, fn, daysBetweenTimestamps)
+rm(df, edx, genres_names, vector, fn)
 
 # split train and test sets
 set.seed(1, sample.kind = "Rounding")
@@ -157,8 +155,6 @@ df <- train_set %>%
   group_by(movieId) %>%
   summarize(deltaRating = mean(rating - mu))
 
-qplot(deltaRating, data = df, bins = 10, color = I("black"))
-
 dfBiasMovie <- left_join(train_set, df) %>%
   select(rating, movieId, deltaRating) %>%
   group_by(movieId) %>%
@@ -179,8 +175,6 @@ df <- train_set %>%
   left_join(dfBiasMovie) %>%
   group_by(userId) %>%
   summarize(deltaRating = mean(rating - mu - biasMovie))
-
-qplot(deltaRating, data = df, bins = 10, color = I("black"))
 
 dfBiasUser <- left_join(train_set, df) %>%
   select(rating, userId, movieId, deltaRating) %>%
@@ -235,9 +229,6 @@ df_test <- test_set %>%
 
 df_test <- df_test %>% select(-all_of(removedPredictors))
 
-# clean memory
-rm(train_set)
-
 # scale predictors
 print("scale predictors")
 spec <- feature_spec(df_train, deltaRating ~ . ) %>% 
@@ -252,8 +243,8 @@ build_model <- function() {
   
   output <- input %>% 
     layer_dense_features(dense_features(spec)) %>% 
-    layer_dense(units = 16, activation = "relu") %>%
-    layer_dense(units = 16, activation = "relu") %>%
+    layer_dense(units = 8, activation = "relu") %>%
+    layer_dense(units = 8, activation = "relu") %>%
     layer_dense(units = 1) 
   
   model <- keras_model(input, output)
@@ -286,20 +277,21 @@ early_stop <- callback_early_stopping(monitor = "val_loss",
 
 model <- build_model()
 
+print("start with keras training")
 history <- model %>% fit(
   x = df_train %>% select(-deltaRating),
   y = df_train$deltaRating,
-  epochs = 1, #20,
+  epochs = numberOfEpochs,
   validation_split = 0.2,
-  verbose = 1,
+  verbose = 0,
   callbacks = list(early_stop, print_dot_callback)
 )
 
 plot(history)
 
 # save model
-print("save model")
-save_model_tf(model, filepath = "./mdl/keras-fit")
+# print("save model")
+# save_model_tf(model, filepath = "./mdl/keras-fit")
 
 # predict
 print("predict testset results")
@@ -307,13 +299,12 @@ p <- model %>% predict(df_test %>% select(-deltaRating))
 p <- p[ , 1]
 
 df <- test_set %>%
-  select(rating, userId, movieId) %>%
+  select(userId, movieId) %>%
   left_join(dfBiasMovie) %>%
   left_join(dfBiasUser) %>%
   mutate(predicted = mu + biasMovie + biasUser + p)
 
 # calculate error metrics
-print("calculate error metrics")
 err <- errRMSE(test_set$rating, df$predicted)
 
 rmse_results <- bind_rows(rmse_results,
@@ -324,19 +315,55 @@ rmse_results <- bind_rows(rmse_results,
 rmse_results
 
 # clean memory
-# rm(df, df_train, df_test, test_set, p)
+rm(df, df_train, p)
 
 # validation
 # read dataset from csv
-if(!exists("validation")) {validation <- read_csv(file = "./dat/validation.csv") %>% as_tibble()}
+print("start validation")
+validation <- read_csv(file = "./dat/validation.csv") %>% as_tibble()
 head(validation)
 
+validation <- validation %>%
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
+
 df_val <- validation %>%
-  select(-c(title, genres, timestamp)) %>%
+  select(-c(genres)) %>%
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(validation$title[1], -5, -2)),
+         timestampYear = year(as_datetime(timestamp)),
+         yearsFromRelease = timestampYear - yearOfRelease) %>%
+  select(-c(rating, title, yearOfRelease, timestampYear)) %>%
+  left_join(dfFirstMovieRating) %>%
+  left_join(dfFirstUserRating) %>%
+  mutate(daysFromFirstUserRating  = daysBetweenTimestamps(timestamp, firstUserRating),
+         daysFromFirstMovieRating = daysBetweenTimestamps(timestamp, firstMovieRating)) %>%
+  select(-c(userId, movieId, timestamp, firstUserRating,firstMovieRating))
+head(df_val)
+
+p <- model %>% predict(df_val)
+p <- p[ , 1]
+
+df <- validation %>%
   left_join(dfBiasMovie) %>%
   left_join(dfBiasUser) %>%
-  mutate(deltaRating = (rating - mu - biasMovie - biasUser),
-         .before = rating) %>%
-  select(-c(rating, userId, movieId, biasMovie, biasUser))
+  mutate(predicted = mu + biasMovie + biasUser + p)
 
-df_test <- df_test %>% select(-all_of(removedPredictors))
+err <- errRMSE(validation$rating, df$predicted)
+
+rmse_results <- bind_rows(rmse_results,
+                          tibble(model ="validation",
+                                 error = err))
+
+# show RMSE results
+print("project results")
+rmse_results
+err
+
+# clean memory
+rm(df, df_test, df_val)
+rm(train_set, test_set, validation)
+
+# restore warnings
+print("job done")
+options(warn = oldw)
+
