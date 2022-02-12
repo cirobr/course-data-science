@@ -1,0 +1,442 @@
+---
+title: "edX Capstone Movielens Project"
+author: "Ciro B Rosa"
+date: "10-Oct-2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+### Introduction and Objective
+
+This report is the result of the job performed on the "Movielens" dataset. The objective is to design a machine learning model that predicts movie ratings for a given user that has not previously seen that movie, based on data such as previous ratings to other movies, user's preferences, etc. The level of efficiency of the model is measured as RMSE (Root Mean Square Error), which means the lowest it the best.
+
+### Before you Begin: Prepare the Environment
+This code has been tested on a specific Anaconda environment created on a Ubuntu 20.04 Linux Mate machine. All necessary scripts can be downloaded from the student's GitHub:
+
+* https://github.com/cirobr/ds9-capstone-movielens.git
+
+Next, the user should download and install Anaconda:
+
+* https://www.anaconda.com/products/individual-d
+
+Now, it is time to create an environment named "r-gpu" with the help of two command lines typed on terminal:
+
+* conda create --name r-gpu python=3.9 notebook r-base=4.1 r-essentials r-e1071 r-irkernel r-varhandle r-foreach r-doparallel r-reticulate r-keras r-tfdatasets
+
+* Rscript install-keras-gpu.R
+
+Lastly, the below script run on RStudio executes the code provided by edX to generate the datasets and stores the files "edx.csv" and "validation.csv" on a sub-folder "./dat", which is also created in the process:
+
+* code-preset.R
+
+At this point, the code is ready for execution on RStudio, through this script:
+
+* code-movielens.R
+
+
+### Code Organization and Project Development.
+
+The code is developed in such a way as to execute the following tasks:
+
+* Setup the environment, libraries and define key functions, such as to calculate RMSE;
+* Read the edX dataset and split it on trainset / testset;
+* Create, train and evaluate the model (naive average and neural network);
+* Validate the model with the "validation" data set, and present the results.
+
+The report will present all relevant outputs, as appropriate, in order to evidence the steps taken.
+
+
+### Project Development
+
+#### Setup environment
+
+```{r warning=FALSE}
+# environment
+library(reticulate)                         # interface R / Python
+use_condaenv("r-gpu", required = TRUE)      # conda env for running tf and keras on gpu
+
+# libraries
+# library(stringi)                          # used on the code as stringi::stri_sub()
+library(ggplot2)
+library(lubridate)
+library(tidyverse)
+library(caret)
+library(foreach)                            # multi-core computing for nzv()
+library(keras)                              # tensorflow wrap
+library(tfdatasets)
+
+# global variables
+numberOfDigits <- 5
+options(digits = numberOfDigits)
+proportionTestSet <- 0.20
+numberOfEpochs    <- 20                    # keras training parameter
+
+# error function
+errRMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+# function: difference between timestamps in days
+daysBetweenTimestamps <- function(x,y){
+  difftime(as_date(as_datetime(x)), 
+           as_date(as_datetime(y)), 
+           units = c("days")) %>% 
+    as.numeric()
+}
+
+# function: extract each genre from column genres
+extractGenresNames <- function(elementVector){
+  as.numeric(grepl(elementVector, genresVector))
+}
+```
+
+#### Read and pre-process the edX dataset
+
+In order to ensure the "validation" data set is not handled at all at the training stage, it is deleted from memory. Please recall that its correspondent CSV file is stored on hard drive. Next, the "edx" data set is loaded to memory.
+
+```{r warning=FALSE}
+# clean memory
+if(exists("validation")) {rm(validation)}
+
+# read dataset from csv
+print("pre-process edx")
+if(!exists("edx")) {edx <- read_csv(file = "./dat/edx.csv") %>% as_tibble()}
+head(edx)
+```
+
+Next, the following predictors will be extracted from the edX data set:
+
+* "yearsFromRelease" is a predictor that indicates the number of years between film release and timestamp of evaluation. The year of release of the film is extracted as "yearOfRelease" from the "title" column.
+
+* "daysFromFirstUserRating" is a predictor that indicates the number of days between the first assessment from a given user and the timestamp of assessment made by the same user. The first assessment from each user is a temporary variable.
+
+* "daysFromFirstMovieRating" is similar to the above predictor. It gives the number of days between the first assessment a given movie has received, and the timestamp of the evaluation for that same movie. The first assessment granted for each movie is also a temporary variable.
+
+* The column "genres" is a multiclass column that indicates the genre(s) of the movie that a given user has classified it. The code seeks for the available genres categories and creates a binary column for each of them.
+
+```{r warning=FALSE}
+# move ratings to first column
+edx2 <- edx %>% select(-c(rating))
+edx2 <- cbind(rating = edx$rating, edx2)
+
+# extract yearsFromRelease
+edx2 <- edx2 %>% 
+  select(-c(genres)) %>%
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(edx$title[1], -5, -2)),
+         timestampYear = year(as_datetime(timestamp)),
+         yearsFromRelease = timestampYear - yearOfRelease) %>%
+  select(-c(title, yearOfRelease, timestampYear)) 
+
+# extract firstUserRating
+dfFirstUserRating <- edx2 %>% group_by(userId) %>%
+  select(userId, timestamp) %>%
+  summarize(firstUserRating = min(timestamp))
+
+edx2 <- left_join(edx2, dfFirstUserRating)
+
+# extract firstMovieRating
+dfFirstMovieRating <- edx2 %>% group_by(movieId) %>%
+  select(movieId, timestamp) %>%
+  summarize(firstMovieRating = min(timestamp))
+
+edx2 <- left_join(edx2, dfFirstMovieRating)
+
+# extract daysFromFirstUserRating and daysFromFirstMovieRating
+edx2 <- edx2 %>% mutate(daysFromFirstUserRating  = daysBetweenTimestamps(timestamp, firstUserRating),
+                        daysFromFirstMovieRating = daysBetweenTimestamps(timestamp, firstMovieRating)) %>%
+  select(-c(timestamp, firstUserRating,firstMovieRating))
+
+# extract movie genres as predictors
+genresNames <- strsplit(edx$genres, "|", fixed = TRUE) %>%
+  unlist() %>%
+  unique()
+
+genresVector <- edx$genres
+df <- sapply(genresNames, extractGenresNames) %>% as_tibble()
+
+# remove hyphen from predictor names
+colnames(df)[7]  <- "SciFi"
+colnames(df)[16] <- "FilmNoir"
+colnames(df)[20] <- "NoGenre"
+
+edx2 <- bind_cols(edx2, df)
+head(edx2)
+
+# clean memory
+rm(df, edx)
+```
+
+#### Split the edX dataset and check for stratification
+
+Next, the "edX" data set is split on trainset and testset. The resulting tables are then  verified for its correct stratification, with the aid of a chart that demonstrates the data splitting has also split each movie rating category, ranging between [0.5; 5.0], at approximately the same 80% trainset / 20% testset proportion.
+
+```{r warning=FALSE}
+# split train and test sets
+set.seed(1, sample.kind = "Rounding")
+test_index <- createDataPartition(edx2$rating, 
+                                  times = 1, 
+                                  p = proportionTestSet,
+                                  list = FALSE)
+test_set <- edx2 %>% slice(test_index)
+train_set <- edx2 %>% slice(-test_index)
+
+# check for stratification of train / test split
+p1 <- train_set %>%
+  group_by(rating) %>%
+  summarize(qty = n()) %>%
+  mutate(split = 'train_set')
+
+p2 <- test_set %>%
+  group_by(rating) %>%
+  summarize(qty = n()) %>%
+  mutate(split = 'test_set')
+
+p <- bind_rows(p1, p2) %>% group_by(split)
+p %>% ggplot(aes(rating, qty, fill = split)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Stratification of Testset / Trainset split")
+```
+
+#### Pre processing of trainset
+
+The trainset is now pre processed for dimensionality reduction by eliminating the small variance predictors. This step is important as it will reduce computational workload at the neural network processing steps.
+
+```{r warning=FALSE}
+# remove movies and users from testset that are not present on trainset
+test_set <- test_set %>%
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
+
+# remove predictors with small variance
+nzv <- train_set %>%
+  select(-rating) %>%
+  nearZeroVar(foreach = TRUE, allowParallel = TRUE)
+removedPredictors <- colnames(train_set[,nzv])
+removedPredictors
+
+train_set <- train_set %>% select(-all_of(removedPredictors))
+test_set <- test_set %>% select(-all_of(removedPredictors))
+
+# cleanup memory
+rm(edx2, test_index)
+rm(p, p1, p2)
+```
+
+#### First model: Naive Average
+
+Next, the naive average model is built as a baseline figure of merit for the project, which means that further processing is expected to, as a minimum, deliver performance better than achieved so far.
+```{r warning=FALSE}
+### predict by global average
+mu <- mean(train_set$rating)
+predicted <- mu
+err <- RMSE(test_set$rating, predicted)
+rmse_results <- tibble(model = "naiveAverage",
+                       error = err)
+rmse_results
+```
+
+#### Dataset preparation for neural network processing:
+
+The below code is a pre-processing of data for the forthcoming neural network processing. The following steps are taken:
+
+* A "movie bias" and "user bias" indexes are extracted, then merged to the train/test sets. The idea of extracting such features might allow the model to capture the "taste" of users to e.g. blockbusters, among others.
+
+
+```{r warning=FALSE}
+# add movie bias effect
+dfBiasMovie <- train_set %>%
+  select(rating, movieId) %>%
+  group_by(movieId) %>%
+  summarize(biasMovie = mean(rating))
+head(dfBiasMovie)
+
+# add user bias effect
+dfBiasUser <- train_set %>%
+  select(rating, userId) %>%
+  group_by(userId) %>%
+  summarize(biasUser = mean(rating))
+head(dfBiasUser)
+
+df_train <- train_set %>% 
+  left_join(dfBiasMovie) %>% 
+  left_join(dfBiasUser) %>%
+  as_tibble()
+
+df_test <- test_set %>%
+  left_join(dfBiasMovie) %>%
+  left_join(dfBiasUser) %>%
+  as_tibble()
+
+head(df_train)
+
+# clean memory
+rm(train_set, test_set)
+```
+
+#### Second model: Neural Network
+
+The code presented next takes the necessary steps to configure, compile, train and test a Neural Network model. This student has chosen to go through this way as a novel approach, in the sense that it has not been exploited at all in classes. An excellent online lecture about the theory behind neural networks can be found here:
+
+* https://youtu.be/Ih5Mr93E-2c
+
+The baseline package used for training the model is "Keras", which is a wrap for "Tensorflow". The technical reference for programming with the package is found at the following links:
+
+* https://cran.r-project.org/web/packages/keras/vignettes/index.html
+* https://tensorflow.rstudio.com/tutorials/beginners/basic-ml/tutorial_basic_regression/
+* https://datascience.stackexchange.com/questions/57171/how-to-improve-low-accuracy-keras-model-design/57292
+
+The Keras package offers a variety of activation functions for its neurons. However, as the package may consume a significant amount of computer resources, this project will focus only on "Relu" activation function, and will not conduct a grid search among several activation functions. 
+
+Please note that the code can take +2h before it ends at an relatively usual Intel core i7 machine with GPU. At the end, the validation of result on each epoch is presented on a chart:
+
+```{r warning=FALSE}
+# scale predictors
+spec <- feature_spec(df_train, rating ~ . ) %>% 
+  step_numeric_column(all_numeric(), normalizer_fn = scaler_standard()) %>% 
+  fit()
+spec
+
+# wrap the model in a function
+build_model <- function() {
+  # create model
+  input <- layer_input_from_dataset(df_train %>% select(-c(rating)))
+  
+  output <- input %>% 
+    layer_dense_features(dense_features(spec)) %>% 
+    layer_dense(units = 32, activation = "relu") %>%
+    layer_dense(units = 16, activation = "relu") %>%
+    layer_dense(units = 16, activation = "relu") %>%
+    layer_dense(units = 8, activation = "relu") %>%
+    layer_dense(units = 8, activation = "relu") %>%
+    layer_dense(units = 1) 
+  
+  model <- keras_model(input, output)
+  summary(model)
+  
+  # compile model
+  model %>% 
+    compile(
+      loss = "mse",
+      optimizer = optimizer_rmsprop(),
+      metrics = list("mean_absolute_error")
+    )
+  
+  model
+}
+
+# train the model
+print_dot_callback <- callback_lambda(
+  on_epoch_end = function(epoch, logs) {
+    if (epoch %% 80 == 0) cat("\n")
+    cat(".")
+  }
+)
+
+early_stop <- callback_early_stopping(monitor   = "val_loss",
+                                      min_delta = 1e-5,
+                                      patience  = 5,
+                                      mode      = "min",
+                                      restore_best_weights = TRUE)
+model <- build_model()
+
+history <- model %>% fit(
+  x = df_train %>% select(-c(rating)),
+  y = df_train$rating,
+  epochs = numberOfEpochs,
+  validation_split = 0.2,
+  verbose = 0,
+  callbacks = list(early_stop, print_dot_callback)
+)
+plot(history)
+```
+
+The prediction on the validation set is now performed:
+
+```{r warning=FALSE}
+# predict
+predicted <- model %>% predict(df_test %>% select(-c(rating)))
+predicted <- predicted[ , 1]
+
+# calculate error metrics
+err <- errRMSE(df_test$rating, predicted)
+
+rmse_results <- bind_rows(rmse_results,
+                          tibble(model ="CNN",
+                                 error = err))
+rmse_results
+
+# clean memory
+rm(df_train, df_test)
+```
+
+#### Validation: The Final Step
+
+Given that we have a tested model, it is time to validate it. The "validation" dataset is now recovered and pre-processed for use, then the predictions are made over it.
+
+The validation set needs to be pre-processed before being used on predictions. This is accomplished in a similar way as for the trainset/testset before:
+
+```{r warning=FALSE}
+# read dataset from csv
+validation <- read_csv(file = "./dat/validation.csv") %>% as_tibble()
+head(validation)
+
+# prepare validation dataset
+df_val <- validation %>%
+  select(-c(rating))
+df_val <- cbind(rating = validation$rating, df_val)
+
+df_val <- df_val %>%
+  select(-c(genres)) %>%
+  mutate(yearOfRelease = as.numeric(stringi::stri_sub(validation$title[1], -5, -2)),
+         timestampYear = year(as_datetime(timestamp)),
+         yearsFromRelease = timestampYear - yearOfRelease) %>%
+  select(-c(title, yearOfRelease, timestampYear)) %>%
+  left_join(dfFirstUserRating) %>%
+  left_join(dfFirstMovieRating) %>%
+  mutate(daysFromFirstUserRating  = daysBetweenTimestamps(timestamp, firstUserRating),
+         daysFromFirstMovieRating = daysBetweenTimestamps(timestamp, firstMovieRating)) %>%
+  select(-c(timestamp, firstUserRating,firstMovieRating))
+
+genresVector <- validation$genres
+df <- sapply(genresNames, extractGenresNames) %>% as_tibble()
+colnames(df)[7]  <- "SciFi"
+colnames(df)[16] <- "FilmNoir"
+colnames(df)[20] <- "NoGenre"
+df_val <- bind_cols(df_val, df)
+
+df_val <- df_val %>% 
+  select(-all_of(removedPredictors)) %>%
+  left_join(dfBiasMovie) %>%
+  left_join(dfBiasUser) %>%
+  as_tibble()
+head(df_val)
+
+# predict
+predicted <- model %>% predict(df_val %>% select(-c(rating)))
+predicted <- predicted[ , 1]
+validRows <- !is.na(predicted)
+
+# calculate error metrics
+err <- errRMSE(df_val$rating[validRows], predicted[validRows])
+
+rmse_results <- bind_rows(rmse_results,
+                          tibble(model ="CNN validation",
+                                 error = err))
+rmse_results
+
+# clean memory
+rm(df, df_val, validation, predicted, validRows)
+```
+
+### Conclusion
+
+The student has demonstrated he has learned several skills from the classes that enabled him to pre-process data and exploit by himself the topic of "neural networks", that has not been covered during the course, and reaching to an RMSE of around 0.880, which is a significant improvement from the naive average approach.
+
+### Next steps / Future work
+
+The student plans to go further on studying the following topics in more details, in order to improve the result of this task and all future tasks:
+* KNN;
+* PCA and SVM;
+* Neural Networks and the Keras package;
+* Ensembles.
