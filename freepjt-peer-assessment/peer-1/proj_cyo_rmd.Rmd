@@ -1,0 +1,246 @@
+---
+title: "Using Machine Learning to analyze Russian Twitter activity"
+author: "Johannes Engels"
+date: "Due Mar 10 2022"
+output: 
+  pdf_document
+bibliography: "citations.bib"
+link-citations: true
+---
+
+```{r Setup, include=FALSE}
+# To perfectly reproduce the knitted pdf with citations, use the citations.bib file at https://github.com/fallenEngels/RDataCapstone/tree/main/proj_chooseyourown
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(message = F)
+knitr::opts_chunk$set(warning = F)
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(tm)
+library(stm)
+library(quanteda)
+library(lubridate)
+library(stringi)
+
+par(mar = c(4, 4, 0.1, 0.1)) 
+# switch this for your machine, you will not have the same file structure as I:
+setwd("E:/Projektvault/Coding/RDataCapstone/proj_chooseyourown")
+```
+
+## Introduction  
+Ever since the election of Donald Trump as president of the USA in 2016, the political fields of American politics appear unbridgeably divided. With only a small fraction of supporters of either political party claiming that the other party shares the same core American values and goals (comp. @Pew2020), this divide shapes up to be one of the most important issues in the political study of the USA and its international relations. One core idea that seems to unify supporters of both political parties, however, seems to be the idea that a lost election could only be caused by cheating from the other side - even if their perception of illegal methods differs significantly.  
+Right-wing theories about Democrat election meddling, especially around the 2020 election, seems to rely mostly on direct interference in the voting process - be it by physically influencing voting machines or fabricating concrete votes. While these theories are often widely shared by parts of the political base and conspiracy theorists, government bodies rejected and dismantled these allegations in a wide variety of cases (comp. complaints in over 40 lawsuits on state and federal level, @BusinessInsider2021).  
+In contrast, left-wing theories about manipulations of the 2016 election do not rely on direct interference with voting mechanisms. Instead, the core argument seems to be that organized public campaigns took place in order to manipulate the public perception, and get people to change their voting intentions. THese alleged manipulation efforts appeared thereby in widely different forms, be it via the release of hacked internal materials by WikiLeaks, the usage of personal data in targeted campaigns via Cambridge Analytica, or the more general idea of Russian interference on Social Media platforms. While some of these allegations can be passed of as conspiracy theories similar to right-wing ideas, there has been proof of some manipulation attempts since 2016. The SPecial Councel investigations under Robert Mueller lead to indictments against both Russian officials and members of the Trump campaign (comp. @Times2019), while researchers and experts concluded that „[t]he Russian government and its proxies have infiltrated and utilized nearly every social media and online information platform – including Instagram, Reddit, YouTube, Tumblr, 4chan, 9GAG, and Pinterest.“ (Rosenberger, quot. in @SCoINY: P. 16).  
+In light of these allegations, a number of the mentioned media platforms have since made efforts to find and remove Russian propaganda and disinformation on their services. Twitter, the platform of choice of former US-President Donald Trump until his ban, expanded their focus on state interference more generally, and has since identified and removed efforts by a widely varying number of actors to influence public opinions in a wide range of countries and around many elections (comp. @TwitterNY). Because of this thorough monitoring of posted contents on their service, as well as the fact that Twitter makes pseudonymized data sets of the identified campaigns available for public analysis, it appears as the best Social Media platform to study the Russian disinformation campaigns around the 2016 US election.  
+In analyzing these Russian tweets, a two-step model with increasing complexity is employed. In a first step, simple word frequency analysis is used to identify core words and concepts used by the Russian trolls, as well as frequent turns-of-phrases that could provide an insight into the dynamics and goals of these campaigns and the general sentiments associated with these words. In a second step, a Natural Language Processing (NLP) Machine Learning model is trained on the data using the available metadata, in order to deeper inspect core topics of the Russian disinformation campaign, as well as to reconstruct changes in their approach/complexity in the time leading up to, during and after election season. Because of the sheer size of the underlying data (encompassing millions of tweets, even when filtered to only tweets posted in English), only a subset of Russian tweets with over 100 interactions (combined number of "likes", "retweets", replies and quote-replies) is considered. While this data set is significantly smaller than the original data set, the reduction should not significantly influence the analysis of Russian influence on US public opinion on Twitter - as the vast majority of russian tweets boast no interactions at all, and have therefore probably not even made their way onto the screens of American Twitter users.  
+
+## Structural makeup of the data set and pattern analysis  
+```{r Structure 1} 
+tweets_raw <- read_csv("data/ira_tweets_csv_hashed.csv",
+                       col_types = cols(tweetid = col_character(), retweet_tweetid = col_character(), in_reply_to_tweetid = col_character(),
+                                        latitude = col_factor(), longitude = col_factor(), poll_choices = col_character()))
+# see proj_cyo.R for the setup of this file and further commentary on used methods
+```
+The raw data set as provided by Twitter contains `r  format(nrow(tweets_raw), , big.mark = " ")` tweets made by `r  format(length(unique(tweets_raw$userid)), big.mark = " ")` unique accounts. The data set encompasses all publicly viewable posts by these users at the time of their deletion by Twitter in late 2018 - posts and media that users deleted before this date, however, are not part of the data set (comp. @TwitterNY). This circumstance may be relevant in analyzing influence dynamics, as it raises a similar issue as the study of terrorisn-related posts and accounts: "Researchers do not see what terrorists post. Rather, they see what is left after platform countermeasures are employed. For the major platforms, this is usually a small subset of what was posted originally, and it means that there is a fundamental bias in nearly all studies of terrorist content online" (@Fishman2019: p.99). Because of this fact, it is entirely possible that a significant amount of Russian posts is not part of this data set - be it because it was not identified by Twitter, because the owners deleted the contents before Twitter identified it, or because Twitter "accidentally" deleted it prior to this examination of Russian interference.  
+In addition to the raw tweets and metadata for each tweet and user, the data set further encompasses profile images, tweet attachments and Periscope live-streams published by the identified accounts, which will be disregarded for the purpose of this analysis. Furthermore, user names and IDs for sers under 5 000 followers are only available as pseudonymized hashes, which has no influence to the analyses performed here.  
+
+#### Account and tweet languages  
+```{r Structure language}
+# table of languages by usage proportion
+lang_tab <- data.frame(sort(table(tweets_raw$tweet_language), decreasing = T)) %>%
+  mutate(Perc = Freq/nrow(tweets_raw))
+
+# filter down core data set
+tweets_clean <- tweets_raw %>% 
+  select(-c("poll_choices", "user_reported_location", "latitude", "longitude", "urls")) %>% # strip unused columns
+  filter(tweet_language %in% c("en")) # remove non-English tweets
+```
+Twitter's data set lists an automatically identified language for each tweet in the data set. While the overall spread of languages is surprisingly wide, with `r length(unique(tweets_raw$tweet_language))` unique languages, it has to be stated that especially for cases with only few occurrences, this could easily be a simple mis-attribution of Twitter's language-identification algorithm. Surprisingly, however, English is not the top language of tweets in the data set: More than half of all posts (`r round(lang_tab$Perc[1] * 100, digits  = 2)`%) are identified as Russian, with English-language tweets in second place (`r round(lang_tab$Perc[2] * 100, digits  = 2)`%). Because of this fact, it can be assumed that Russian disinformation campaigns seem to be as much a national phenomenon as they are an international one. Based on the scope and goals of this analysis, however, the circumstances and contents of Russian tweets will be entirely disregarded, as will all other non-English languages - which seem to not have played nearly as big a role in Russian disinformation campaigns anyway, as the third-most used language, German, comes in at a measly `r round(lang_tab$Perc[2] * 100, digits  = 2)`% of all tweets.  
+Filtering for only English-classified weets reduces the data set from nearly 9 million tweets down to `r  format(nrow(tweets_clean), , big.mark = " ")` tweets.  
+
+#### Account reach  
+```{r Structure reach, results='hide'}
+rm(tweets_raw); gc()
+tweets_clean <- tweets_clean %>% mutate(interactions = like_count + reply_count + retweet_count + quote_count)
+tweets_red <- tweets_clean %>% filter(interactions >= 100)
+```
+Contained in the data set are four different measures of "reach" that a tweet can achieve: "likes", "retweets", replies and quote-replies. For readers unfamiliar with Twitter, it should be explained that all these actions come with different consequences and require varying degrees of effort. Simply "liking" a tweet someone else posted will, for example, not show up on the activity feeds of one's followers (unless they specifically enable it), while retweeting another person's tweet *will* show up in one's followers' feed. *Table 1* provides a short overview of amplification and effort for all four metrics. As is to be expected from this dynamic, the more simple forms of interactions are the ones that see the most use when users interacted with tweets from Russian accounts (comp. *Table 2*).  
+
+**Table 1**: Different forms of interactions on Twitter by effort and visibility  
+```{r Interactions Explainer}
+reach_mat <- matrix(c("like", "reply", "retweet", "quote"), nrow = 2,
+                    dimnames = list(c("low effort (needs only 1 or 2 clicks)", "high effort (with option for own text)"),
+                                    c("not visible on follower timeline", "visible on follower timeline")))
+knitr::kable(reach_mat, align = "r")
+```
+**Table 2**: Number of achieved interactions by type over all English-language tweets  
+```{r Interactions Table}
+inter_mat <- data.frame(measure = c("like", "retweet", "reply", "quote"), 
+                        sum = c(sum(tweets_clean$like_count, na.rm = T), sum(tweets_clean$retweet_count, na.rm = T), 
+                                sum(tweets_clean$reply_count, na.rm = T), sum(tweets_clean$quote_count, na.rm = T)))
+knitr::kable(inter_mat)
+```
+However, not all Tweets received the same amounts of attention from external users. There are certain tweets that received wide-spread attention, most of the tweets contained in the data set received basically no interactions at all. While examining all tweets in the data set would prove as a valuable methodical base to chart, explore and identify core themes in Russian twitter activities and their developments over time (for work on this topic see @Engels2021), including these "failed" tweets will not help in identifying the topics and themes that reached and therefore potentially influenced American twitter users. The data set has to be filtered to a subset of tweets that actually reached users to achieve this study goal.   
+When choosing said minimum reach per tweet, however, differentiating between the four methods of interactions and their respective underlying effort would be a fool's errant, since the (assumed) qualitative differences can not be quantified - i.e. how much more a quote-interaction is "worth" in comparison to a like-interaction can not be measured and taken into account. Therefore, when searching a cutoff-point, all four measures of interaction are tallied up into one singular measure.  
+This grouped measure of reach provides an even clearer view on how many of the tweets in the data set failed to gain any traction. While the most wide-ranging tweet managed to attract `r format(max(tweets_clean$interactions, na.rm = T), big.mark = " ")` interactions, there are a whopping `r format(length(tweets_clean$interactions[tweets_clean$interactions == 0]), big.mark = " ")` (`r round(length(tweets_clean$interactions[tweets_clean$interactions == 0]) / nrow(tweets_clean) * 100, digits = 2)`%) of tweets with exactly zero interactions.   
+To ensure that the tweets used in the following analysis all had the potential to reach real twitter users, while also maintaining a data set large enough for complex methodologies, a cutoff-point of 100 interactions was chosen. As the examination of tweets with 0 interactions clearly shows, a social media parallel of the "long tail" phenomenon (comp. @Anderson2004) seems to be present on social media, where achieving large numbers of interactions gets increasingly harder, and user interactions seem to coalesce around certain, far-reaching tweets/accounts. On the other hand, choosing 100 interactions as the cutoff-point leaves us with  `r format(nrow(tweets_red), big.mark = " ")` tweets by `r format(length(unique(tweets_red$userid)), big.mark = " ")`, which should still be enough data for complex language analysis.  
+
+## Statistical Analysis  
+Statistical word can be seen as a simple but very effective way to identify and quantify the central talking points and concepts underlying a base data set. The premise of this approach is rather simple: Using the supplied text data (= corpus) and user specified metadata, measures like frequency of each unique word over the entire corpus, or the lexical diversity of used words is calculated and returned.  
+
+#### Cleaning the data  
+```{r Data Cleanup, echo = F, results='hide'}
+rm(tweets_clean); gc()
+
+# load pre-cleaned file (see proj_cyo.R for setup and explainer)
+tweets_red <- read_csv("data/tweets_en-red.csv",
+                       col_types = cols(tweetid = col_character(), retweet_tweetid = col_character(), in_reply_to_tweetid = col_character()))
+
+# remove unnecessary information
+toks <- quanteda::tokens(tweets_red$tweet_text,
+                         remove_symbols = TRUE,
+                         remove_separators = TRUE,
+                         remove_punct = TRUE)
+
+toks <- tokens_remove(tokens_tolower(toks), c(stopwords("en")))
+toks <- tokens_wordstem(toks)
+# convert to document-feature-matrix
+dtm <- dfm(toks)
+# add metadata back in
+docvars(dtm, "date") <- tweets_red$tweet_time
+docvars(dtm, "userid") <- tweets_red$userid
+docvars(dtm, "quotecount") <- tweets_red$quote_count
+docvars(dtm, "replycount") <- tweets_red$reply_count
+docvars(dtm, "likecount") <- tweets_red$like_count
+docvars(dtm, "retweetcount") <- tweets_red$retweet_count
+```
+However, before this analysis can produce useful results, the core data set has to be "cleaned", i.e. certain unique features of the data set have to be removed, and words have to be standardized, to ensure a high-quality comparison. The most obvious cleaning revolves around non-word entries in the text. While easily interpretable by human readers and common on text messaging apps, text purely or partially made up of symbols (from the simple ":-)" to more complex ASCII-characters, and the "#" associated with using trending topics) as well as emojis can not be interpreted by standard text processing applications and punctuation, which is irrelevant for word frequency analysis.  
+Therefore, before starting this analysis, all symbols will be removed from the data set, and all emojis will be replaced by a unique identifier based on their descriptive name (for example "emoj_grinningface", comp. @Unicode). Furthermore, Twitter - as well as many other social media sites - allows users to tag other users in their message. The names of these tagged users, however, are not relevant to the contents of the message, and will therefore be removed as well, same as hyperlinks to external web sites, images or videos that do not add text-based information to a tweet.  
+Further preprocessing steps address the standardization of words in the corpus. This includes the removal of capitalization, as otherwise "This" and "this" would be seen as entirely different words by the algorithm. The same holds true for grammatically altered words: plural-s (one poster, two posterS) as well as conjugated forms of words (I go, he goES) have to be standardized to be identifiable by the algorithm. There are tow main methods of replacing words with their base forms in a text corpus: *stemming*, which uses a crude algorithm to chop off certain word structures, and *lemmatization*, which uses a preset dictionary to replace words with another specified word (for a deeper dive, see @Stanford2009). While lemmatization often achieves higher.quality results (as no mis-identification is possible), a stemming approach is used in this case to counteract the fact that the language used in communications on social media platforms, and especially in the context of Twitter's imposed character limit, will very likely not reflect grammatically "proper" English at all times.   Another fact to consider: Certain words - that would undoubtedly lead in any frequency analysis, like "to", or "I", or "will" - provide no or almost no insight into the discussed topics, as they are used way too frequently to be of relevance. According to Zipf's law (comp. @Powers1998), these commonly-used words should make up the dominant part of high-frequency words in the text corpus, making frequency analysis almost entirely worthless. To combat this, the used preprocessing package *quanteda* comes with a built-in function to remove the most common low-information "stopwords", which was used on the corpus. 
+
+#### Word frequencies  
+After these steps of cleaning and streamlining the data, we now have what is called a document-feature-matrix (dfm), which can be visualized as a matrix that lists all unique words as columns, all source documents (i.e. unique tweets) as rows, and then fills the cells based on the number of appearances of a given word in a given tweet. To enable more complex analyses, the post time for each tweet, as well as the individual interaction variables (likes, retweets, replies, quote-tweets) were added as metadata to the dfm.  
+When inspection the most often used words, we see an unsurprising result (comp. *Figure 1*): The most commonly used words all revolve around political and social issues in the USA, addressing the presidential candidates Trump and Clinton, then-current president Obama and certain parts of the population (White, Black, Muslim). While the distribution of word frequencies in the data seem to follow Zipf's law rather closely, it is impressive that the name Trump appears as the most frequently used word in the entire data set, lending credibility to the assumption that Russian Twitter activities were used to boost his profile as a candidate. The fact that "black" appears as the second most used word is also of interest, however, based on this frequency analysis alone it can not be determined, whether this implies an astroturfed campaign to get black people to support Trump, or whether black people were referred to in a derogative way to attract certain right-wing voters. On a meta level, this plot also demonstrates that no cleaning procedure is perfect, as both "america" and "american" show up as separate entries. However, this has to be expected, and should not pose a problem for further analysis.  
+\newpage
+**Figure 1**: Top 15 most frequently used words in remaining data set.  
+```{r Freq Graph}
+dtm %>% textstat_frequency(n = 15) %>% 
+  ggplot(aes(x = reorder(feature, frequency), y = frequency)) +
+  geom_point() +
+  coord_flip() +
+  labs(x = NULL, y = "Frequency") +
+  theme_minimal()
+```
+
+#### N-Grams and word networks  
+As can be easily seen in the graph of the 15 most frequent words, certain words are not easily interpretable on their own, but provide more information when analyzed in context. We see for example both "hillari" and "clinton" in the top 15. While it can be assumed that both entries refer to then-democratic candidate Hillary Clinton, this is not deducible from the obtained corpus. To address this shortcoming, words can be combined and analyzed as N-grams - compositions of several words (Bi-grams consist of two words, Tri-grams of three, etc.). For instance, “United States” is a bigram, which could be combined in the underlying data to “United_States”, to ease analysis.  
+For the analysis constructed here, only bigrams were considered, as many of the most frequently used words appear to be bigrams (Hillary Clinton, black/white people, ...). While an argument could be made for also including trigrams, based on the amount of raw data (and prevalence of Black Lives Matter in the american social consciousness), a further argument could be made for quadrigrams as well, to include Donald Trump's slogan "Make America Great Again". Instead of phrasing out and analyzing the need for a wide range of N-gram complexity, I opted to keep it simple and only include bigrams. When looking at the most common identified bigrams (comp. *Table 3*), we see the hypotheses posited earlier confirmed: Names appear with a very high frequency, as well as issues around the lived experience of black people, and especially Black Lives Matter and policing, but also chains of similar emoji.  
+  
+**Table 3**: Top 20 most frequently appearing bigram constructs.  
+```{r Ngrams}
+bigram <- tokens_ngrams(toks, n = 2)
+freq.bigram <- table(as.character(bigram))
+knitr::kable(sort(freq.bigram, decreasing=T)[1:20])
+```
+
+## Natural Language Processing  
+While the frequency analysis shown above already serves as a simple visualization of the mentioned words and topics, it can not be used to establish the context necessary for analyzing these words. We now know that "Trump" was one of the most important terms in the analyzed tweets - but was he covered positively or negatively? While simple frequency analysis can not answer this question, a Natural Language Processing (NLP) model might.  
+NLP is a machine learning approach to language processing, that addresses the base corpus in its entirety while searching for structures and constants in the contents. Based on the used words in each individual tweet, their occurrences and relation to each other, as well as supplied metadata variables, a pre-defined number of *topics* from words with high rates of coexistence is constructed (comp. @Roberts2019). "Substantively, these patterns — topics — are
+latent thematic dimensions of the document collection; and the model optimizes the patterns to be as descriptive as possible of the collection of documents as a whole" (@Munoz2019, P.622). As such, the resulting topics and the tweets most strongly associated with them should be easily and readily interpretable. The chosen metadata for this analysis includes the four measures of interactions with each tweet, as well as the date of posting, used here to track potential developments in topics and contents over time. While there could be a case for including the account-IDs as metadata, this has been discarded as we can assume that the underlying data was a coordinated Russian influencing attempt, rather than individual posters without common motivation.  
+
+#### Finding K  
+As this is an unsupervised machine learning algorithm, only the starting parameters have to be tuned by hand, while the entire model develops and optimizes itself independently. The one parameter that is arguably the most crucial part of the entire algorithm, however, has to be manually defined - the number of topics to fill (also known as K). As stated above, the algorithm works by splitting the data set among K axes and giving each tweet a score in regards to its position in relation to said topic. The number of topics can therefore make or break the quality of a specified NLP model. „There is not a "right” answer to the number of topics that are appropriate for a given corpus“ (@Roberts2019, P. 11), but there are certain core qualities that can be compared between differing amounts of K to see which amount of topics achieves the best results. Three of these qualities will be compared for differing Ks to identify the number of topics best suited for our corpus:  
+- *Held-out likelihood* is a cross-validation measure to check if and to what extend the specified model is able to correctly sort data (here: tweets) not used when constructing the base topic distribution  
+- *Exclusivity* is a measure in langauge grouping that measures to which extend the defining words of one topic appear in other topics (i.e. how exclusive they are to "their" topic) while its counterpart *Semantic Coherence* is a measure of how many different topics are present in each tweet.  
+Especially exclusivity and semantic coherence illustrate why there can be no "right" K, as in theory, exclusivity is maximized when each unique word populates its own topic, while semantic coherence is maximized when as many words as possible appear in the same topic. For the purposes of this study, topic values between 5 and 40 in 5-step increases were used to identify a K-value best suited for the final NLP model. As *Figure 2* shows, exclusivity rises steadily, while semantic coherence continues to fall. There is, however, a gain in semantic coherence between 25 and 30 topics, which lines up with the highest held-out-likelihood values recorded. As such, a K of 30 appears to be best suited for the underlying data.  
+  
+**Figure 2**: Exclusivity, Held-out likelihood and semantic coherence for different K  
+```{r K plot, fig.height = 3}
+load("data/selectK.RData")
+selectk_df <- data.frame(K = unlist(select_k$results$K), exclus = unlist(select_k$results$exclus), semcoh = unlist(select_k$results$semcoh),
+                         heldout = unlist(select_k$results$heldout), residual = unlist(select_k$results$residual),
+                         bound = unlist(select_k$results$bound), lbound = unlist(select_k$results$lbound), em.its = unlist(select_k$results$em.its))
+selectk_df %>% select(K, semcoh, exclus, heldout) %>%
+  pivot_longer(-K, names_to = "measure", values_to = "value") %>% # melt data frame
+  ggplot(aes(x = K, y = value, group = measure, color = measure)) +
+  geom_line() +  facet_wrap(.~measure, scale = "free", ncol = 3) +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+#### Topic Analysis  
+```{r Topic analysis, results='hide'}
+load("data/stm_mod_30.RData")
+stm_dtm <- convert(dtm, to = "stm")
+used_documents <- names(stm_dtm$documents)
+used_documents <- used_documents %>% gsub("^text", "", .) %>% as.integer(.)
+
+dates <- paste(year(stm_dtm$meta$date), "-", isoweek(stm_dtm$meta$date), sep = "")
+for (i in 1:length(dates)) {
+  if (nchar(dates[i]) == 6) {
+    stri_sub(dates[i], 6, 5) <- 0
+  }
+}
+topic_times <- data.frame(dates, stm_model_30$theta)
+counts <- topic_times %>% count(dates)
+colnames(topic_times) <- c("date", paste("topic_",1:30, sep = ""))
+topic_times <- aggregate(.~date, FUN = mean, data = topic_times)
+topic_times <- topic_times %>% mutate(count = counts[,2])
+topic_times$max <- apply(topic_times[,2:31], 1, max)
+
+```
+  
+Based on the 30 topics the NLP algorithm identified, the underlying tens of thousands of tweets can now be examined based on broad thematic groups, instead of having to go through the data set tweet-by-tweet and manually classifying them with regards to certain topics.  
+When visualizing the general topic distribution in chronological sequences based on the posting weeks for each tweet, we can see that, although all topics display consistent entries, four general phases of tweet activity are visible (comp. *Figure 3*):
+- A slow start of activities in 2014/2015, with low amounts of activity.
+- A steady increase in activity between the last quarter of 2015 all throughout 2016, with increases and decreases in line with the pre-election season (Election Day fell in week 45, after which several weeks of reduced activities occur) and a sharp drop around the end of 2016.
+- A plateau of high amounts of activities all throughout the first two thirds of 2017,
+- and a sharp drop in activities for the remainder of time in the data set.  
+  
+However, while topics appear to follow similar activity trends throughout time, certain topics seem to "spike" in activity for short amounts of time. The most obvious of these activity spikes comes in mid-2016, when one topic rises in proportion above all others and reigns supreme for a number of weeks (comp. *Figure 3*, weeks 2016-35 to 42) with a tweet association of about 10%. Inspecting the tweets most highly associated with the underlying topic, we can see that this was a coordinated smear campaign against Clinton and people surrounding her (comp. *Table 4*), strategically deployed in the final weeks before the election to influence voters away from voting Democrat.  
+
+\newpage
+**Figure 3**: Topic distribution by week (color) and total number of tweets (black)  
+```{r Topic dist, out.extra = 'angle = -90', out.width = "135%"}
+topic_times.long <- reshape2::melt(topic_times, id.vars = c("date", "count"))
+ggplot(topic_times.long, aes(x = date, y = value * count, group = variable, color = variable)) +
+  geom_line() + geom_line(aes(x = date, y = count), color = "black") +
+  scale_y_sqrt() + theme_minimal() + 
+  scale_x_discrete(breaks = topic_times.long$date[floor(seq(1, nlevels(as.factor(topic_times.long$date)), length.out = 50))]) +
+  labs(y = "# of tweets", x = "Calendar week") +
+  theme(axis.text.x = element_text(angle = 90), legend.position = "none")
+```
+  
+  
+Inspecting this topic provides another insight into the underlying structure in Russian tweets: There is a tendency to reuse the same core phases over and over again, albeit with slight variations in phrasing or used hashtags. While there are some topics that show almost no copy-pasting in the most-highly associated tweets, almost all topics show at least some amount of reused phrasing. Surprisingly enough, there seems to be a trend in the amount of copypasting based on "political orientation". While - as demonstrated with the previously shown topic - especially right-wing and anti-Clinton content displays a high amount of copypasting, tweets surrounding black culture, and especially tweets celebrating the achievements of black Americans show a higher amount of creativity and boast changes in phrasing even when addressing the same underlying stories (comp. *Table 5*).  
+  
+\newpage
+**Table 4**: Tweets most highly associated with spiking pre-election topic.  
+```{r spike thoughts 17, fig.height = 8.5}
+labels <- labelTopics(stm_model_30, topics = 30, n = 10)
+prob <- list()
+frex <- list()
+for(i in c(1:30)){
+  prob[[i]] <- paste(labels$prob[i,], collapse = ' ')
+  frex[[i]] <- paste(labels$frex[i,], collapse = ' ')
+}
+labels_df <- data.frame(Prob = unlist(prob), Frex = unlist(frex), Topics = 1:30)
+rm(labels, prob, frex, i)
+top <- 17 # Topic spiking around this time
+thought <- findThoughts(stm_model_30, n = 20, topics = top, text = tweets_red$tweet_text[used_documents])$docs[[1]]
+plotQuote(thought, text.cex = 0.75, width = 80)
+```
+\newpage
+**Table 5**: Example of top tweets for topics celebrating black achievements.  
+```{r black celebration, fig.height = 8.5}
+top <- 22 # Example topic for black celebration
+thought <- findThoughts(stm_model_30, n = 20, topics = top, text = tweets_red$tweet_text[used_documents])$docs[[1]]
+plotQuote(thought, text.cex = 0.75, width = 80)
+```
+  
+## Conclusion  
+As has been shown by the examples presented above, Natural Language Processing can provide a more nuanced look on underlying topics and dynamics when analyzing tweets. While the core concepts identified in a more simple frequency analysis approach still hold mostly true, the presented NLP algorithm and its results allow for a more in-depth examination of core motifs and dynamics at work in coordinated Russian Twitter activities.  
+While an in-depth review of all tweets, or even all topics in this subset of tweets, remains out-of-scope for this report, the observed results point to a multi-pronged approach in Russian activities. While coverage of candidate Clinton is consistently negative throughout all topics, coverage of Trump features praise as well as harsh criticism. The same holds true for black communities. While there are certainly cases of topics disparaging black people along with other non-white parts of the population, there seems to be a rather influential subset of Russian accounts dedicated to celebrating black culture and the achievements of black people in America and all around the world. While this subset does not provide enough data to verify or disprove this suspicion, it could be possible that these accounts were used to "infiltrate" and subvert the black American Twitter community and - combined with the overwhelming anti-Clinton messaging - discourage them from voting to improve Donald Trumps chances of winning the election.  
+If we assume this to be true, the continuing Russian activities even after the date of the election and throughout 2017 could be seen as a way to keep hold of the public opinion and seed distrust between certain communities and the Democratic party, to enable Trump to stay confidently in power and exert his will nationally and internationally, without having to worry about a "rebellion" from within.  
+
+## Bibliography  

@@ -1,0 +1,471 @@
+---
+title: "PH125.9x Data Science. Capstone. Barcelona Airport (BCN) Performance"
+author: "Jordi Candela "
+date: "February 2022"
+output: html_document
+---
+\newpage
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This file contains the second exercise, an original and personally built from scratch exercise, of the edx course PH125.9x. Capstone of the Data Science Professional Certificate of HarvardX.
+
+The exercise analizes the performance of a particular airport, Barcelona in the example, thanks to the data achieved through a data scrapping algorithm that gets the data supplied by flightradar.com.
+
+Flightradar.com is a webpage that acquires the data from the aircraft transponders and delivers information of each flight of the world that uses a transponder. This data, in parallel, is compared with the airlines scheduled, delivering information about delays, cancelled flights, flight times, etc.
+
+In the case of the airport of Barcelona, the airport suffered massive delays since 2016 until the beginning of the Covid-19 pandemy, being very difficult to allocate the responsibilities of such disruptions.
+
+The exercise aims to find if Barcelona airport delays follow any particular relationship with the major data from flightradar, wich are mainly the flightcode, the scheduled time, or the airline.
+
+To perform this exercise, only airport departures will be considered, since they have a miminum value of delay equal to zero and may provide a better picture in the event of poor airort performance (airport arrivals are usually more influenced by the airport origin than by the destination airport).
+
+Several linear regression will be tested, trying to correlate delays with scheduled time under different data sets. On the top of that, a machine learning algorith will be also tested to see if there is a trustworthy estimation of delays from the variables of the dataset.
+
+The different methodologies used follow the contents of the previous courses of the program, and mainly the techniques explained in the Linear Regression and Machine Learning courses, PH125.7x and PH125.8x.
+
+
+# Overview
+
+The data used in this exercise are the total number of departures of Barcelona airport of September 2019, which was on the busiest months in the hostory of the airport. This data is extracted into an xlx file that becomes the initial dataset for the exercise.
+
+The first stage of the work consists in understanding the structure of the dataset and the nature of the data. Under this topic, the major airlines of the airport is achieved and a benchark of delays between the major airlines of the airport is performed.
+
+Once the major features of the dataset are undertood, some data transformation are required in order to be able to analyst the correlation between delays and a particular hour of the day.
+
+Moreover, additional complementary datasets are built in order to identify whether there is a specific trend for the dominant carrier of the airport (Vueling in the case of Barcelona) or by the major carriers of the airport.
+
+The next stage is performing several linear regression exercises in order to find clear correlations of delays with time of operation.
+
+Finally, a machine learning algorithm is performed trying to minimize the RMSE, starting with a naive approach, which is complemented by trying to minimize the RMSE correlation the delay with the most relevant variables of the dataset.
+
+
+# Executive Summary
+
+The results of the exercise conclude that there is not a clear relationship between delays and time of operation or the airline, showing a quite homogeneous dispersion as long as the operation begins. This could be explained either by the lack of the relevant variable that leads to a delay (for instance, weather conditions) or because of the fact that the airport suffers structural delays as long as the daily operations start. 
+
+
+# Methods & Analysis
+
+**Techniques - approach**
+
+Methodologically, the different steps of the exercise are summarized as follows:
+
+1. Installation of R packages.
+
+2. Reading the datafile.
+
+3. Data tyding.
+
+4. Understanding the dataset.
+
+5. Linear regression models.
+
+6. Machine learning algorithm 
+
+<br>
+<br>
+
+* **1. Installation of R packages**
+```{r, echo=TRUE, message=FALSE}
+
+# Package Installs
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(stringr)) install.packages("stringr", repos = "http://cran.us.r-project.org")
+if(!require(recosystem)) install.packages("recosystem", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(readxl)) install.packages("readxl", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+library(lubridate)
+library(stringr)
+library(recosystem)
+library(kableExtra)
+library(readxl)
+
+```
+<br>
+<br>
+
+* **2. Reading the xlsx datafile**
+
+Once installed the required package, the dataset is read and a sample of the file is achieved in order to understand the data structure of the file:
+
+```{r, echo=TRUE, message=FALSE}
+BCN_September_2019 <- read_excel("C:/Users/Jordi Candela/Desktop/Edx_CP_Data Science_Harvard/9.- PH125.9x Data Science. Capstone/2.- own project/BCN_September_2019.xlsx")
+
+```
+<br>
+<br>
+
+* **3. Data tyding**
+
+In order to ease the further manipulation of the data several operations contains NA values, which will be omitted in this analysis, since they belong to flight that finally are not being flown: canceled, diverted, descheduled, etc. and my distort the final findings of the work.
+
+```{r, echo=TRUE}
+BCN_September_2019<- na.omit(BCN_September_2019)
+```
+
+<br>
+<br>
+
+
+* **4. Understanding the dataset**
+
+The initial dataset is a table with 14.862 airport departures, each regiser / row corresponding to a single departure.
+
+The different variables of the dataset are:
+
+- Flight (chr): Flight code of the operation.
+- From (chr): Departure airport IATA code. Always BCN in this case.
+- To (chr): Destination airport IATA code.
+- AL_CODE (chr): Airline IATA code.
+- AC_TYPE (chr): Aircraft type.
+- STATUS (chr): Indicates if the flight has effectively departed.
+- DATE (POSIXct): Date of operation.
+- STD (POSIXct): Scheduled time of operation.
+- ATD (POSIXct): Actual time of operation.
+- fr22_dd (num): Operation delay in minutes (ATD-STD)
+- AIRLINE (chr): Airline commercial name
+
+```{r, echo=TRUE}
+head(BCN_September_2019)
+```
+**Understanding delays in relation to airlines**
+The following step is to understand the distribution of the traffic grouped by airlines, what shows that there is a lot of dispersion within in many carriers.
+
+```{r, echo=TRUE}
+# Behaviour per airlines and delays
+BCN_September_2019_airline <- BCN_September_2019 %>%
+  group_by(AIRLINE) %>% 
+  summarise (mean_delay = mean (fr24_dd), n=n())
+str(BCN_September_2019_airline)
+
+```
+
+Thus, the previous dataset is filtered in order to work with the major carriers. In the case of Barcelona airport there are only 19 carriers that had more than 100 departures in September 2019, and thus have enough critical mass to be analysed.
+
+```{r, echo=TRUE}
+# Filter of Airlines with more than 100 monthly departures
+BCN_September_2019_airline <- filter(BCN_September_2019_airline, n >= 100)
+BCN_September_2019_airline
+
+```
+
+The next step is to arrange the top airlines that have better performances, which are shown in the corresponding barplot .
+
+```{r, echo=TRUE}
+#Obtaining the major airlines with better performance
+top_airlines_arranged <- arrange(BCN_September_2019_airline, mean_delay)
+top_airlines_arranged
+                 
+#Barplot arplot delay of TOP airlines (n > 100 monthly departures)
+top_airlines_arranged %>%
+  ggplot(aes(AIRLINE, mean_delay))+
+  geom_col(fill="lightblue") +
+  labs(title="Barplot of delay per airline")+
+  geom_text(aes(label = signif(mean_delay, digits = 2)), nudge_y = 4)+
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=90, hjust=1)) 
+
+```
+
+According to the date, one would conclude that there are is a remarkable difference between airlines, with a  better performance of legacy carriers (flag or national carriers like Iberia, Air France, Lufthansa).
+
+Besides, the breakdown of traffic of the airport shows a concentration around three major players: Vueling, Ryanair and Easyjet, whose delays are particularly analyzed through a boxplot. It is curious the fact the results of the boxplot shows a very similar performance of the three major players of the airport, although the local social perception is that Vueling is the airline that usually records poorer performances in Barcelona. Data denies this perception.
+
+```{r, echo=TRUE}
+# Behavior of TOP3 Airlines
+BCN_September_2019_TOP3 <- filter(BCN_September_2019, AIRLINE %in% c("easyJet", "Ryanair", "Vueling"))
+
+BCN_September_2019_TOP3 %>%
+  ggplot(aes(x=AIRLINE, y=fr24_dd, fill=AIRLINE)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(0,250))+
+  geom_jitter(color="darkblue", size=0.2, alpha=0.05) +
+  theme(
+    legend.position="none",
+    plot.title = element_text(size=10)
+  ) +
+  ggtitle("TOP 3 Airlines Delays Boxplot") +
+  xlab("") +
+  ylab("delay in min")  
+```
+<br>
+<br>
+
+**Understanding delays in relation to hour of operation**
+It make sense to continue the analysis only considering the airlines that account more than 100 monthly operations in Barcelona, since smaller carriers would add a lot of dispersion to the results due to its outlying performance usually originated by external factors not related to Barcelona airport.
+
+It is important to understand the spread of the evolution of the delays along the day, which is shown in the next plot.
+
+```{r, echo=TRUE}
+# Evolution of delays within the day
+dailydelay <- ggplot(BCN_September_2019, aes(x=ATD, y= fr24_dd)) +
+  geom_point(
+    color="lightblue",
+    fill="#69b3a2",
+    shape=21,
+    alpha=0.3,
+    size=0.1,
+    stroke = 2
+  )+
+  geom_smooth(method=lm , color="red", se=FALSE) +
+  labs(x = "Hour",y = "Delay")+
+  theme(axis.title.x = element_text(vjust=-0.5, size=rel(1))) +
+  theme(axis.title.y = element_text(vjust=1.5, size=rel(1)))
+  
+dailydelay
+```
+
+Since the airport operations start from 6:00 AM in the morning, it is more accurate to follow the analysis not considering outlying operations from 0 AM to 6 AM, which are usually made by cargo operators and follow very different patterns and business models compared to passenger operations.
+
+In order to do that, and considering that the information of the time of operation is related each one to a particular date, the hour of operation has been extracted and a new dataset filtering the hours above 6 AM is built.
+
+
+```{r, echo=TRUE}
+# Evolution of delays within the day without considering early morning/late night
+BCN_September_2019_nomorning <- cbind(BCN_September_2019, hour = hour(BCN_September_2019$ATD))
+
+BCN_September_2019_nomorning <- BCN_September_2019_nomorning %>% filter (BCN_September_2019_nomorning$hour >= 6)
+
+head(BCN_September_2019_nomorning)
+```
+<br>
+<br>
+
+* **5. Linear regression models**
+
+The methodology applied follows the contents of the course PH125.7x Linear Regression, coordinated by the professor Rafael Irizarry.
+
+The first linear regression aims to find the relation between the delay and the hour of operation, delivering poor results of the R.
+
+```{r, echo=TRUE}
+# Linear regression delay vs hour without considering early morning / late night
+lmdelay = lm(fr24_dd ~ hour, data = BCN_September_2019_nomorning) 
+summary(lmdelay) 
+```
+
+The plot shows the huge dispersion of the delay is continuous along the day.
+
+```{r, echo=TRUE}
+# Plot of Delays and Linear regression delay of departures vs hour without considering early morning / late night
+dailydelay_nomorning <- ggplot(BCN_September_2019_nomorning, aes(x=ATD, y= fr24_dd)) +
+  geom_point(
+    color="darkblue",
+    fill="#69b3a2",
+    shape=21,
+    alpha=0.3,
+    size=0.1,
+    stroke = 2
+  )+
+  geom_smooth(method=lm , color="red", se=FALSE) +
+  labs(x = "Hour",y = "Delay")+
+  theme(axis.title.x = element_text(vjust=-0.5, size=rel(1))) +
+  theme(axis.title.y = element_text(vjust=1.5, size=rel(1)))
+
+dailydelay_nomorning
+```
+
+A second linear regression aims to put light on the performance of the major carrier of the airport, Vueling, who eventually may have a singular pattern due to the important amount of based aircrafts.
+
+However, the results of this second exercise of linear regression still show a poor correlation.
+
+```{r, echo=TRUE}
+### Linear regression 2
+# Linear regression delay of Vueling vs hour without considering early morning / late night
+BCN_September_2019_nomorning_vy <- BCN_September_2019_nomorning %>% filter (BCN_September_2019_nomorning$AIRLINE %in% c("Vueling"))
+lmdelay_vy = lm(fr24_dd ~ hour, data = BCN_September_2019_nomorning_vy) 
+summary(lmdelay_vy) 
+```
+
+
+The dispersion of Vueling's delays along the day is shown in the plot below.
+
+```{r, echo=TRUE}
+# Plot of Delays and Linear regression delay of Vueling vs hour without considering early morning / late night
+dailydelay_nomorning_vy <- ggplot(BCN_September_2019_nomorning_vy, aes(x=ATD, y= fr24_dd)) +
+  geom_point(
+    color="orange",
+    fill="#69b3a2",
+    shape=21,
+    alpha=0.3,
+    size=0.1,
+    stroke = 2
+  )+
+  geom_smooth(method=lm , color="red", se=FALSE) +
+  labs(x = "Hour",y = "Delay")+
+  theme(axis.title.x = element_text(vjust=-0.5, size=rel(1))) +
+  theme(axis.title.y = element_text(vjust=1.5, size=rel(1)))
+
+dailydelay_nomorning_vy
+
+```
+<br>
+<br>
+
+* **6. Machine learning algorithm **
+
+
+The methodology applied follows the contents of the chapter 6.2, Recommendation Systems,  of the course PH125.8x Machine Learning, coordinated by the professor Rafael Irizarry.
+
+The target of the modelling when estimating is to minimize the error function of the estimation function, the Residual MEan Square Error (RMSE).
+
+Lower values of RMSE mean higher accuracies of the prediction. Thus the approach will follow a successive approximation approach, trying the most relevant variables and, in the event that an improvement is achieved within a particular variable,  progressively adding new variables/bias that contribute to decrease values of RMSE. 
+
+**0.- Preparation of the dataset**
+
+The machine learning datased is created from BCN_September_2019 data and considering a validation dataset of 10% of the data.
+
+```{r, echo=TRUE}
+# Validation set will be 10% of BCN_September_2019 data
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(BCN_September_2019_nomorning$fr24_dd, p = 0.1, list = FALSE)
+tester_bcn <- BCN_September_2019_nomorning[-test_index,]
+validation_bcn <- BCN_September_2019_nomorning[test_index,]
+```
+
+**i.- Simple Naive Prediction**
+
+The simple or naive prediction model does not consider any bias ; in other words, does not consider the "quality" of a particular airlines  
+
+Therefore, the model strictly uses the mean of the dataset to predict the delay, assuming that all differences are due to a random error;
+
+$$ Y_{u,i} = \mu + \epsilon_{u,i} $$
+where $Y_{u,i}$ is the prediction, $\epsilon_{u,i}$ is the independent error, and $\mu$ the expected "true" delay for all flights Predicting the mean gives the following naive RMSE.
+
+```{r, echo=TRUE}
+### Simple Naive Prediction based on Mean Delay
+mu <- mean(tester_bcn$fr24_dd)
+mu
+rmse_naive <- RMSE(tester_bcn$fr24_dd, mu)
+rmse_naive
+
+# Create a Data Tibble and Save Results 
+rmse_results = tibble(method = "Naive Analysis by Mean", RMSE = rmse_naive)
+rmse_results %>% knitr::kable()
+```
+<br>
+<br>
+
+**ii.- Airline Effects(b_i) Prediction**
+
+The Hour Effects Prediction considers that the prediction of a rating of a delay has a bias linked to airline.
+
+This bias of the airline (b_i) is estimated as the difference between the airline mean rating and the overall mean rating.
+
+The mathematical formula of this model is stated as:
+$$ Y_{u,i} = \mu + b_i + \epsilon_{u,i} $$
+where $Y_{u,i}$ is the prediction, $\epsilon_{u,i}$ is the independent error, and $\mu$ the mean delay for all fligths, and $b_i$ is the bias for each airline $i$.
+
+
+```{r, echo=TRUE}
+### Simple model taking into account the airline effects (b_i)
+mu <- mean(tester_bcn$fr24_dd)
+airline_avgs <- tester_bcn %>%
+  group_by(AIRLINE) %>%
+  summarise(b_i = mean(fr24_dd - mu))
+predicted_delays <- mu + validation_bcn %>%
+  left_join(airline_avgs, by='AIRLINE') %>%
+  pull(b_i)
+rmse_model_airline_effects <- RMSE(predicted_delays, validation_bcn$fr24_dd)
+rmse_model_airline_effects
+rmse_results <- bind_rows(rmse_results, 
+                          tibble(method="Airline Effects Model",
+                                     RMSE = rmse_model_airline_effects))
+rmse_results %>% knitr::kable()
+```
+<br>
+<br>
+
+**iii.- Hour Effects(b_h) Prediction**
+
+The Hour Effects Prediction considers that the prediction of a rating of a delay has a bias linked to hour of the flight.
+
+This bias of the hour (b_h) is estimated as the difference between the hour mean rating and the overall mean rating.
+
+The mathematical formula of this model is stated as:
+$$ Y_{u,h} = \mu + b_h + \epsilon_{u,h} $$
+where $Y_{u,h}$ is the prediction, $\epsilon_{u,h}$ is the independent error, and $\mu$ the mean delay for all fligths, and $b_h$ is the bias for each hour $i$.
+
+
+```{r, echo=TRUE}
+### Simple model taking into account the hour effect (b_h)
+mu <- mean(tester_bcn$fr24_dd)
+airline_avgs <- tester_bcn %>%
+  group_by(hour) %>%
+  summarise(b_h = mean(fr24_dd - mu))
+predicted_delays <- mu + validation_bcn %>%
+  left_join(airline_avgs, by='hour') %>%
+  pull(b_h)
+rmse_model_hour_effects <- RMSE(predicted_delays, validation_bcn$fr24_dd)
+rmse_model_hour_effects
+rmse_results <- bind_rows(rmse_results, 
+                          data_frame(method="Hour Effects Model",
+                                     RMSE = rmse_model_hour_effects))
+rmse_results %>% knitr::kable()
+```
+
+
+Both the airline (b_i) and hour (b_h) improve the initial naive model, achieving a lower RMSE value, although with very slight results that lead to the conclusion that with the information from flightradar.com cannot be successfully deployed a machina learning algorithm to prodict the delays of Barcelona airport.
+
+<br>
+<br>
+
+
+**Summary of results**
+The values of the R achieved in the linear models show values close to 0, illustrating the no-relationship of  delays with the airlines or the hour of operation.
+
+The results applying the machine learning algorithm are consistent with the linear regression models, which are stated below;
+
+```{r, echo=TRUE}
+rmse_results %>% knitr::kable()
+```
+
+<br>
+<br>
+
+
+# **Results and Conclusions**
+
+* **Summmary**
+
+The performance of Barcelona airport, although it is very difficult to be modelled and thus predicted from the public data available in platforms such  flightradar.com; can be objectively explained and understood through the analysis of available information.
+
+Some examples of non-evident conclusions of this report are:
+
+*- Legacy carriers in Barcelona suffer less delays tha low-cost carriers*
+*- The three major airlines of Barcelona, all low-cost carriers, follow very similar delay patterns, although socially Vueling is perceived as the less punctual airline, whereas Easyjet is perceived the most efficient of the three and really has the lowest performance (This can be surely explained by the efffect of media, PR and social media)*.
+*- Along the day, delays follow a stagnated patter as soon as the first operational wave of the airport begins, which is usually about 6:00 AM*.
+
+On the other hand, the different methodologies applied to try to identify behaviors or patters of delays correlated to data such as arline of time of operation do not provide sturdy conclusions.
+
+
+* **Limitations**
+
+The major limitation faced in the study is the lack of computational power to include mode data in the analysis, such as more operational months.
+
+
+* **Future Work**
+
+As stated before, adding more variables in future operations would add new textures that could help achieving more accurate estimations and relationships of the airport delays, otherwise the all the conclusions would tend to depict an scenario with structural airport delays and thus a lack of airport operational capacity.
+
+Examples of this could include meteorological conditions (wind speed, wind direction, rain, etc.) or operational conditions from the tower of control. 
+
+Thanks to IOT, additional data from GPS receivers will be more easily attached and complement the intitial set of variables used.
+
+
+* **References**
+
+Irizarry,R., 2019. Introduction to Data Science.
+
+Irizarry,R., github site: rafalab

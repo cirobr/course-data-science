@@ -1,0 +1,547 @@
+---
+title: "Report on Capstone/MovieLens-project 02/2022"
+author: "alex-stocker"
+date: "04.02.2022"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      collapsed: no
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+<style type="text/css">
+div.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+h1.title {
+  text-align: center;
+}
+h4.author {
+  text-align: center;
+}
+h4.date { 
+  text-align: center;
+}
+
+.infobox td {
+   padding-top: 5px;
+   padding-bottom: 5px;
+}
+
+.infobox table {
+  margin-bottom: 5px;
+}
+
+.infobox thead {
+  margin-bottom: 10px;
+}
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      out.width = "80%",
+                      fig.align = "left")
+library(knitr)
+```
+
+# Executive Summary
+*This report describes my work in the Capstone MovieLens project in order to develop a recommender system for movies using the 10M MovieLens dataset. In my project report I elaborate on data exploration and pre-processing. Further, I introduce all the different models that I created and try to give a rationale for them. I test their effectiveness on a test set. I finally decide on the model with the highest RMSE value and then apply this model to the validation dataset.*
+
+```{r edx Capstone instructor code, include=FALSE}
+
+# https://grouplens.org/datasets/movielens/10m/
+
+##########################################################
+# Create edx set, validation set (final hold-out test set)
+##########################################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+
+###############################################
+# Download the MovieLens 10M dataset:
+###############################################
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+colnames(movies) <- c("movieId", "title", "genres")
+
+# if using R 4.0 or later:
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                            genres = as.character(genres))
+movielens <- left_join(ratings, movies, by = "movieId")
+
+###############################################
+## Test  with a smaller (local) dataset
+# write_rds(movielens_short,"C:/Users/alexanderstocker/Documents/R/edx/movies_short.rds")
+# write_csv(movielens_short,"C:/Users/alexanderstocker/Documents/R/edx/movies_short.csv")
+# movielens <- read_csv("C:/Users/alexa/OneDrive/R/edx/movielens/movies_short.csv")
+
+# Validation set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+```
+
+# Introduction and motivation
+The application of machine learning algorithms is one of the biggest challenges in data science. Recommender systems are one of the most important use cases for machine learning. 
+
+This is the report on the Capstone "Movielens" project, which is part of the HarvardX PH125.9x Data Science course. The Movielens datasets are provided by [GroupLens Research] (https://grouplens.org/datasets/movielens/) in various sizes. These datasets were collected as part of Netflix's movie recommendation competition, the [Netxflix Prize] (https://www.netflixprize.com/). To win the Netflix challenge, the participants had to improve the algorithm of Netflix by at least 10% for $1 million.Therefore, a root mean squared error (**RMSE**) score of of about **0.857** had to be achieved. GroupLens Research has launched its own movie recommendation service and created its own datasets to train its recommendation system.
+
+The goal of this capstone project "Movielens" was to **develop a recommendation system for movies** using the smaller [10M version of the MovieLens dataset] (http://grouplens.org/datasets/movielens/10m/) to simplify the calculations. This dataset contains 10000054 ratings and 95580 tags for 10681 movies assigned by 71567 different users of the MovieLens online movie recommendation service. Here, users give a 1-5 star rating to different films depending on how they found those films. This is a more complicated machine learning challenge because each outcome has a different set of predictors. For example, different users rate a different number of movies and they also rate different movies. There are many types of biases in the movie reviews that have to be tackled. 
+
+# Methods/analysis
+
+## Data Ingestion
+The code provided in the Capstone module downloads the MovieLens data and generates two datasets, (1) the **edx set** that is used to train the algorithm, and (2) **the validation set** (the final hold-out test set) to evaluate how close the predictions are to the true values in the validation set at the end of the project. 
+
+As the validation set may not be used to test the RSME of multiple models (as stated in the introduction of the course) the edx data has to be split into separate **training** and **test datasets** to first design and then test the models. 
+
+Hence there will be three different datasets in my project, (1) a training dataset for model training, (2) a test dataset for model validation through a 80:20 split of the edx dataset and (3) a validation dataset for the final validation of the best model
+
+## Data Exploration
+As a first step, I complete a series of exercises to better understand what is in the dataset as well as the characteristics of the data to analyse. These includes some general analysis such as looking at the structure of the dataset, counting rows and columns, looking at user ratings, counting different users and films, and looking at film ratings for specific film genres. 
+
+The table below shows whats inside the **MovieLens dataset**.
+```{r}
+kable(head(edx))
+```
+
+The table below shows the structure of the MovieLens dataset.
+```{r}
+kable(str(edx))
+```
+
+The table below shows a summary of the MovieLens dataset.
+```{r}
+kable(summary(edx))
+```
+
+The next part of my data exploration was part of the **R quiz** to complete.
+```{r Q1}
+q1_1 <- nrow(edx)
+q1_2 <- ncol(edx)
+```
+Q1: There are `r q1_1` rows and `r q1_2` columns are in the edx dataset
+```{r Q2}
+q2_1 <- sum(edx$rating==0)
+q2_2 <- sum(edx$rating==3.0)
+```
+Q2: There are `r q2_1` zeros and `r q2_2` threes given as ratings in the edx dataset.
+```{r Q3}
+q3 <- edx %>% summarize(n_movies = n_distinct(movieId))
+```
+Q3: There are `r q3` different movies  in the edx dataset.
+```{r Q4}
+q4 <- edx %>% summarize(n_users = n_distinct(userId))
+```
+Q4: There are `r q4` different users  in the edx dataset.
+```{r Q5}
+q5_1 <- nrow(edx %>% filter(str_detect(genres,"Drama")))
+q5_2 <- nrow(edx %>% filter(str_detect(genres,"Comedy")))
+q5_3 <- nrow(edx %>% filter(str_detect(genres,"Thriller")))
+q5_4 <- nrow(edx %>% filter(str_detect(genres,"Romance")))
+
+```
+Q5: There are `r q5_1` movie ratings in the genre "Drama", `r q5_2` movie ratings in the genre "Comedy", `r q5_3` movie ratings in the genre "Thriller", and `r q5_4` movie ratings in the genre "Romance".
+```{r Q6}
+q6 <- edx %>% group_by(title) %>% 
+              summarise(number_of_ratings = n()) %>%
+              arrange(desc(number_of_ratings)) %>% 
+              head(1) %>% 
+              pull(title)
+```
+Q6: The movie "`r q6`" has the greatest number of ratings.
+```{r Q7}
+q7 <- edx %>% group_by(rating) %>% 
+              summarise(number = n()) %>%
+              arrange(desc(number)) %>% head(5)
+```
+Q7: The following table shows the five most given movie ratings from most to least.
+```{r, results='asis'}
+kable(q7)
+```
+Q8: In general, half star ratings are less common than whole star ratings. This is shown in the subsequent plot.
+```{r Q8}
+edx %>%
+  group_by(rating) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(x = rating, y = count)) +
+  geom_line() +
+  ggtitle("Movie ratings")
+```
+
+Further data exploration included to take a look at the distribution of movie ratings delivering two results: Some movies get many more ratings than other movies and some users are much more active then other users.
+```{r ratings, echo=FALSE}
+# Some movies get more ratings than others
+edx %>% 
+  dplyr::count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() + 
+  ggtitle("Movie ratings")
+
+# Some users are more active rating movies than others
+edx %>%
+  dplyr::count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() +
+  ggtitle("User activity")
+```
+
+## Data preparation 
+### Training and test datasets
+Before starting to work on my machine learning algorithm using the inputs in one subset to predict the movie ratings in the final validation set, I will first split the edx data into separate **training** and **test sets** to design and test my algorithm as often practiced during the machine learning course. 
+
+This is important as the **validation data** (i.e. the final hold-out test set) should NOT be used for training, developing, or selecting my algorithm and **ONLY be used for evaluating the RMSE of my final algorithm**. 
+
+I have to make sure to not include movies in my test set that dot appear in my training set and will remove those entries using the semi_join command.
+```{r create training and test data, include=FALSE}
+set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.1, list = FALSE)
+train_set <- edx[-test_index,]
+temp <- edx[test_index,]
+
+# Make sure that userId and movieId in train_set are also in test_set
+test_set <- temp %>% 
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId") %>% 
+  semi_join(train_set, by = "title")
+
+# Add rows removed from test set back into train set
+removed <- anti_join(temp, test_set)
+edx <- rbind(train_set, removed)
+rm(ratings, movies, test_index, temp, movielens, removed)
+```
+
+## Computing RMSE scores
+I write a function that computes the RMSE for vectors of ratings and their corresponding predictors. I will use this function to benchmark the models I further introduce in the report.
+```{r RMSE, echo=TRUE, results='hide'}
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+```
+
+# Model training
+In the following section, I first present the developed models and second the results of their validation with the test set.
+
+## Mean only rating model
+The simplest recommendation system is to predict the same rating for all movies, i.e. the mean of all ratings. 
+```{r model 1, echo=FALSE}
+mu <- mean(train_set$rating)
+```
+The **mean of all ratings** is `r mu`.
+
+## Movie Effect Model
+The second recommendation system considers movie effects: Some movies are in general rated higher than others. Hence, movie ratings are subtracted by the mean for each rating that the movie received. "b_i" is introduced as penalty term for the movie effect.
+
+```{r model 2, echo=FALSE}
+movie_avgs_norm <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu))
+
+qplot(b_i, data = movie_avgs_norm, bins = 10, color = I("black"))
+
+predicted_ratings_b_i <- mu + test_set %>% 
+  left_join(movie_avgs_norm, by='movieId') %>%
+  pull(b_i)
+
+```
+
+## Movie + User Effect Model
+The second recommendation system considers movie and user effects: Some users rate movies generally higher than others do. "b_u" is introduced as penalty term for movie effect.
+```{r model 3, echo=FALSE}
+train_set %>% 
+  group_by(userId) %>% 
+  filter(n()>=100) %>%
+  summarize(b_u = mean(rating)) %>% 
+  ggplot(aes(b_u)) + 
+  geom_histogram(bins = 30, color = "black")
+
+user_avgs_norm <- train_set %>% 
+  left_join(movie_avgs_norm, by='movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+qplot(b_u, data = user_avgs_norm, bins = 10, color = I("black"))
+
+predicted_ratings_b_i_b_u <- test_set %>% 
+  left_join(movie_avgs_norm, by='movieId') %>%
+  left_join(user_avgs_norm, by='userId') %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  pull(pred)
+```
+A further exploration of the data delivered interesting results: The supposed “best” and “worst” movies were rated by very few users, in most cases just 1. These noisy estimates should not be trusted.
+```{r further exploration, echo=FALSE}
+train_set %>% 
+  left_join(movie_avgs_norm, by='movieId') %>%
+  mutate(residual = rating - (mu + b_i)) %>%
+  arrange(desc(abs(residual))) %>%  
+  slice(1:15) %>% 
+  pull(title)
+
+# Connect movieId to movie title)
+movie_titles <- train_set %>% 
+  select(movieId, title) %>%
+  distinct()
+```
+This are the *ten best rated* movies.
+```{r, echo=FALSE}
+# 10 best movies according to our estimate
+movie_avgs_norm %>% left_join(movie_titles, by="movieId") %>%
+  arrange(desc(b_i)) %>% 
+  slice(1:10)  %>% 
+  pull(title)
+```
+This are the *ten worst rated* movies.
+```{r, echo=FALSE}
+# 10 worst movies
+movie_avgs_norm %>% left_join(movie_titles, by="movieId") %>%
+  arrange(b_i) %>% 
+  slice(1:10)  %>% 
+  pull(title)
+```
+The supposed "best" and "worst" movies were rated by very few users, only, in most cases just one. These noisy estimates should not be trusted. The result below shows how often the movies are rated.
+```{r, echo=FALSE}
+# how often are these movies rated
+train_set %>% count(movieId) %>% 
+  left_join(movie_avgs_norm, by="movieId") %>%
+  left_join(movie_titles, by="movieId") %>%
+  arrange(desc(b_i)) %>% 
+  slice(1:10) %>% 
+  pull(n)
+```
+
+## Movie + User + Title Effect Model
+The subsequent analysis takes the title effect into account: Thereby, "b_t" is introduced as penalty term for the title(-rating) effect.
+```{r model 4, echo=FALSE}
+
+title_avgs_norm <- train_set %>%
+  left_join(movie_avgs_norm, by='movieId') %>%
+  left_join(user_avgs_norm, by='userId') %>%
+  group_by(title) %>%
+  summarize(b_t = mean(rating - mu - b_i - b_u))
+
+qplot(b_t, data = title_avgs_norm, bins = 10, color = I("black"))
+
+predicted_ratings_b_i_b_u_b_t <- test_set %>%  
+  left_join(movie_avgs_norm, by='movieId') %>%
+  left_join(user_avgs_norm, by='userId') %>%
+  left_join(title_avgs_norm, by='title') %>%
+  mutate(pred = mu + b_i + b_u + b_t) %>%
+  pull(pred)
+```
+
+## Regularized Movie + User Effect Model
+I should not trust noisy estimates. Hence, I apply the concept of regularization to further improve on our RMSE score. Through regularization I can penalize large estimates formed using small sample sizes. In the following model, I use penalized least squares and add penalties. This allows me to control the total variability of the effects. 
+I further improve the model by regularizing not only the movie, but also the user effect. This should also further improve the RMSE score. I introduce lambda as a tuning parameter and use cross validation to choose the ideal lambda. The RMSE score is shown below.
+
+```{r model 5, echo = FALSE}
+lambdas <- seq(3, 7, 0.25)
+rmses <- sapply(lambdas, function(l){
+    mu <- mean(train_set$rating)
+    b_i <- train_set %>% 
+     group_by(movieId) %>%
+     summarize(b_i = sum(rating - mu)/(n()+l))
+    b_u <- train_set %>% 
+     left_join(b_i, by="movieId") %>%
+     group_by(userId) %>%
+     summarize(b_u = sum(rating - b_i - mu)/(n()+l))
+    predicted_ratings <- test_set %>% 
+     left_join(b_i, by = "movieId") %>%
+     left_join(b_u, by = "userId") %>%
+     mutate(pred = mu + b_i + b_u) %>%
+    pull(pred)
+  return(RMSE(predicted_ratings, test_set$rating))
+})
+
+min(rmses)
+
+lambda <- lambdas[which.min(rmses)]
+
+qplot(lambdas, rmses)
+
+# Compute new predictions with optimal lambda
+b_i <- train_set %>% 
+  group_by(movieId) %>%
+  summarize(b_i = sum(rating - mu)/(n()+lambda))
+
+b_u <- train_set %>% 
+  left_join(b_i, by="movieId") %>%
+  group_by(userId) %>%
+  summarize(b_u = sum(rating - b_i - mu)/(n()+lambda))
+
+predicted_ratings_reg_1 <- test_set %>% 
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  pull(pred)
+
+```
+The optimal lambda for this model is **`r lambda`**.
+
+## Regularized Movie + User + Title Effect Model
+Finally, I further improve the model by also regularizing the title effect which should again improve the RMSE score shown below.
+```{r model 6, echo = FALSE}
+lambdas <- seq(1, 10, 0.25)
+rmses <- sapply(lambdas, function(l){
+  mu <- mean(train_set$rating)
+  b_i <- train_set %>%
+   group_by(movieId) %>%
+   summarize(b_i = sum(rating - mu)/(n()+l))
+  b_u <- train_set %>% 
+   left_join(b_i, by="movieId") %>%
+   group_by(userId) %>%
+   summarize(b_u = sum(rating - b_i - mu)/(n()+l))
+  b_t <- train_set %>% 
+   left_join(b_i, by="movieId") %>%
+   left_join(b_u, by="userId") %>%
+   group_by(title) %>%
+   summarize(b_t = sum(rating - b_i - b_u - mu)/(n()+l))
+  predicted_ratings_reg_2 <- test_set %>% 
+    left_join(b_i, by = "movieId") %>%
+    left_join(b_u, by = "userId") %>%
+    left_join(b_t, by = "title") %>%
+    mutate(pred = mu + b_i + b_u + b_t) %>%
+    pull(pred)
+   return(RMSE(predicted_ratings_reg_2, test_set$rating))
+})
+
+min(rmses)
+
+lambda <- lambdas[which.min(rmses)]
+
+qplot(lambdas, rmses)
+
+# Compute new predictions with optimal lambda
+
+b_i <- train_set %>% 
+  group_by(movieId) %>%
+  summarize(b_i = sum(rating - mu)/(n()+lambda))
+
+b_u <- train_set %>% 
+  left_join(b_i, by="movieId") %>%
+  group_by(userId) %>%
+  summarize(b_u = sum(rating - b_i - mu)/(n()+lambda))
+
+b_t <- train_set %>% 
+  left_join(b_i, by="movieId") %>%
+  left_join(b_u, by="userId") %>%
+  group_by(title) %>%
+  summarize(b_t = sum(rating - b_i - b_u - mu)/(n()+lambda))
+
+predicted_ratings_reg_2 <- test_set %>% 
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_t, by = "title") %>%
+  mutate(pred = mu + b_i + b_u + b_t) %>%
+  pull(pred)
+
+```
+The optimal lambda for this model is **`r lambda`**.
+
+# Model validation
+In this subsection, I show the results of the validation of the different models with the test data in order to identify the model with the highest RSME score and then finally validate the winning model with the validation data.
+
+## Model validation with testset
+The table shows the **RSME scores** for all **models** developed. 
+Only the model with the highest RSME score will be used with the validation dataset.
+```{r model validation 1, echo=FALSE}
+
+# Model validation with test set
+mu_RMSE <- RMSE(test_set$rating, mu)
+mu_b_i_RMSE <- RMSE(test_set$rating, predicted_ratings_b_i)
+mu_b_i_b_u_RMSE <- RMSE(test_set$rating,predicted_ratings_b_i_b_u)
+mu_b_i_b_u_b_t_RMSE <- RMSE(test_set$rating,predicted_ratings_b_i_b_u_b_t)
+regularized_RMSE_1 <- RMSE(test_set$rating,predicted_ratings_reg_1)
+regularized_RMSE_2 <- RMSE(test_set$rating,predicted_ratings_reg_2)
+
+# I build a results tibble for all methods using the test dataset
+rmse_results <- data.frame(Method=c("Mean", 
+                                    "+ Movie Effect", 
+                                    "+ User Effect", 
+                                    "+ Title Effect",
+                                    "Regularized Movie + User Effect",
+                                    "Regularized Movie + User + Title Effect"),
+                           RMSE=c(mu_RMSE, 
+                                  mu_b_i_RMSE, 
+                                  mu_b_i_b_u_RMSE,
+                                  mu_b_i_b_u_b_t_RMSE,
+                                  regularized_RMSE_1,
+                                  regularized_RMSE_2)
+                          )
+#rmse_results
+rmse_min <- min(rmse_results$RMSE)
+rmse_re <- rmse_results %>% arrange(RMSE) %>% filter(row_number()==1) %>% pull(Method)
+```
+
+The subsequent table shows the RSME score for the test dataset.
+```{r, results='asis'}
+kable(rmse_results)
+```
+The model **`r rmse_re`** gives the best RMSE score of **`r rmse_min`** on the test dataset.
+
+## Model validation with validation dataset
+```{r}
+val1 <- nrow(validation)
+val2 <- ncol(validation)
+```
+The best model **`r rmse_re`** is finally validated using the **validation dataset**. There are in total `r val1` rows and `r val2` columns in this dataset. 
+
+```{r model validation 2, echo=FALSE}
+## Validation of the *best model* with the validation dataset
+predicted_ratings_val <- validation %>%
+  left_join(movie_avgs_norm, by='movieId') %>%
+  left_join(user_avgs_norm, by='userId') %>%
+  left_join(title_avgs_norm, by='title') %>%
+  mutate(b_i = ifelse(is.na(b_i), 0, b_i)) %>% # remove NAs
+  mutate(b_u = ifelse(is.na(b_u), 0, b_u)) %>%
+  mutate(b_t = ifelse(is.na(b_t), 0, b_t)) %>%
+  mutate(pred = mu + b_i + b_u + b_t) %>%
+  pull(pred)
+
+RSME_val <- RMSE(validation$rating,predicted_ratings_val)
+```
+
+The final RSME score using the best model **`r rmse_re`** is **`r RSME_val`**
+
+# Conclusion
+This report presents my work in the Capstone MovieLens project related to the development of a recommender system for the MovieLens dataset. First, I examined the dataset to better understand its structure and what it contains. I performed some general analyses and computed some graphs. Furthermore, I started developing models for recommender systems, starting with the simplest model, the mean score model, using the training set. I validated all the models using the test set.
+
+Finally, I validated the model with the best performance on the validation set. My final RMSE result for the model **`r rmse_re`** against the validation dataset is **`r RSME_val`**. This score is **< 0.86490**, the value to beat, hence I successfully completed the Capstone MovieLens challenge.
