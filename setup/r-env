@@ -1,0 +1,2 @@
+conda create -c conda-forge --name r-gpu r-base r-essentials r-e1071 r-irkernel r-varhandle r-foreach r-doparallel r-reticulate r-keras r-tfdatasets
+
